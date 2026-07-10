@@ -1,32 +1,14 @@
-# React + TypeScript + Vite
+# Birthday Wish 🎂
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+Gửi lời chúc sinh nhật kèm hiệu ứng đặc biệt và QR code.
 
-Currently, two official plugins are available:
+## Tính năng
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- Tạo wish với ảnh, emoji, hiệu ứng (bong bóng, confetti, trái tim)
+- Chia sẻ wish qua QR code
+- Hiệu ứng gooey khi di chuột
+- Lịch sử wish đã tạo
 
-## React Compiler
+## Tech
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
-```
-
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+React 19 + TypeScript + Vite 6 + Tailwind CSS 4
