@@ -1,9 +1,6 @@
 services:
-  - type: static_site
+  - type: web
     name: birthday-wish
+    env: node
     buildCommand: npm install && npm run build
-    staticPublishPath: dist
-    headers:
-      - path: /*
-        name: Cache-Control
-        value: no-cache
+    startCommand: npm start
