@@ -6,13 +6,17 @@ interface BalloonPresentationProps {
   onComplete?: () => void
 }
 
+function hexToRgb(hex: string) {
+  const r = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)
+  return r ? `${parseInt(r[1], 16)},${parseInt(r[2], 16)},${parseInt(r[3], 16)}` : "255,100,150"
+}
+
 export function BalloonPresentation({ color, onComplete }: BalloonPresentationProps) {
   const [mode, setMode] = useState<"idle" | "flying" | "popped" | "done">("idle")
   const [pullDir, setPullDir] = useState<"up" | "down" | null>(null)
   const [pullAmount, setPullAmount] = useState(0)
   const [showHint, setShowHint] = useState(true)
   const canvasRef = useRef<HTMLCanvasElement>(null)
-  const balloonRef = useRef<HTMLDivElement>(null)
   const dragStartY = useRef(0)
   const pullStartY = useRef(0)
   const doneRef = useRef(false)
@@ -51,7 +55,14 @@ export function BalloonPresentation({ color, onComplete }: BalloonPresentationPr
     window.addEventListener("pointerup", onUp)
   }, [])
 
-  // Pop animation on canvas
+  // Flying complete
+  useEffect(() => {
+    if (mode !== "done") return
+    const timer = setTimeout(() => onComplete?.(), 500)
+    return () => clearTimeout(timer)
+  }, [mode, onComplete])
+
+  // Water splash pop effect
   useEffect(() => {
     if (mode !== "popped") return
     const canvas = canvasRef.current
@@ -65,111 +76,165 @@ export function BalloonPresentation({ color, onComplete }: BalloonPresentationPr
     const H = canvas.height
     const cx = W / 2
     const cy = H / 2
+    const rgb = hexToRgb(color)
 
-    // Shards flying upward
-    const shards: { x: number; y: number; vx: number; vy: number; size: number; rot: number; rotV: number; life: number; maxLife: number }[] = []
-    for (let i = 0; i < 60; i++) {
-      const angle = -Math.PI / 2 + (Math.random() - 0.5) * Math.PI * 1.2
-      const speed = 2 + Math.random() * 6
-      shards.push({
-        x: cx + (Math.random() - 0.5) * 40,
-        y: cy + (Math.random() - 0.5) * 40,
-        vx: Math.cos(angle) * speed + (Math.random() - 0.5) * 2,
-        vy: Math.sin(angle) * speed - 2 - Math.random() * 3,
-        size: 3 + Math.random() * 6,
-        rot: Math.random() * Math.PI * 2,
-        rotV: (Math.random() - 0.5) * 0.2,
-        life: 0,
-        maxLife: 30 + Math.random() * 30,
+    const totalFrames = 130
+    const onCompleteFrame = 75
+
+    // Splat blobs — irregular overlapping ellipses
+    const blobs: { x: number; y: number; rx: number; ry: number; rot: number; delay: number; expand: number }[] = []
+    for (let i = 0; i < 20; i++) {
+      const angle = Math.random() * Math.PI * 2
+      const dist = 10 + Math.random() * 80
+      blobs.push({
+        x: cx + Math.cos(angle) * dist * 0.2,
+        y: cy + Math.sin(angle) * dist * 0.2,
+        rx: 40 + Math.random() * 160,
+        ry: 30 + Math.random() * 120,
+        rot: Math.random() * Math.PI,
+        delay: Math.random() * 4,
+        expand: 0.6 + Math.random() * 0.8,
       })
     }
 
-    // Jagged edge particles (surrounding the burst area)
-    const edges: { x: number; y: number; angle: number; len: number; life: number; maxLife: number }[] = []
-    for (let i = 0; i < 36; i++) {
-      const angle = (Math.PI * 2 * i) / 36
-      const len = 20 + Math.random() * 50
-      edges.push({
-        x: cx + Math.cos(angle) * 30,
-        y: cy + Math.sin(angle) * 30,
+    // Radial spikes
+    const spikes: { angle: number; len: number; w: number; delay: number }[] = []
+    for (let i = 0; i < 40; i++) {
+      const angle = Math.random() * Math.PI * 2
+      spikes.push({
         angle,
-        len: len + (Math.random() - 0.5) * 20,
-        life: 0,
-        maxLife: 25 + Math.random() * 20,
+        len: 80 + Math.random() * 250,
+        w: 4 + Math.random() * 30,
+        delay: Math.random() * 4,
       })
     }
 
-    let frame: number
+    // Droplets with trails
+    const drops: { x: number; y: number; vx: number; vy: number; r: number; life: number; trail: { x: number; y: number }[] }[] = []
+    for (let i = 0; i < 140; i++) {
+      const angle = Math.random() * Math.PI * 2
+      const speed = 3 + Math.random() * 15
+      drops.push({
+        x: cx + (Math.random() - 0.5) * 30,
+        y: cy + (Math.random() - 0.5) * 30,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed - 3,
+        r: 1.5 + Math.random() * 7,
+        life: 0,
+        trail: [],
+      })
+    }
+
+    let frame = 0
+    let completedCalled = false
+    let animId: number
+
     const animate = () => {
       ctx!.clearRect(0, 0, W, H)
+      const progress = Math.min(frame / totalFrames, 1)
+      const splashAlpha = Math.max(0, 1 - progress * 1.1)
 
-      // Draw jagged edge ring
-      let edgeAlive = false
-      ctx!.beginPath()
-      for (const e of edges) {
-        if (e.life >= e.maxLife) continue
-        edgeAlive = true
-        const alpha = 1 - e.life / e.maxLife
-        ctx!.globalAlpha = alpha * 0.7
-        const tipX = e.x + Math.cos(e.angle) * e.len
-        const tipY = e.y + Math.sin(e.angle) * e.len
-        ctx!.moveTo(e.x, e.y)
-        ctx!.lineTo(tipX, tipY)
-        e.life++
-        e.len *= 0.97
+      // Call onComplete when splash is mostly faded but still visible
+      if (!completedCalled && frame >= onCompleteFrame) {
+        completedCalled = true
+        setTimeout(() => onComplete?.(), 100)
       }
-      ctx!.strokeStyle = color
-      ctx!.lineWidth = 2
-      ctx!.stroke()
-      ctx!.globalAlpha = 1
 
-      // Draw shards
-      let shardAlive = false
-      for (const s of shards) {
-        if (s.life >= s.maxLife) continue
-        shardAlive = true
-        s.x += s.vx
-        s.y += s.vy
-        s.vy -= 0.02
-        s.vx *= 0.99
-        s.rot += s.rotV
-        s.life++
-        const alpha = 1 - s.life / s.maxLife
-        ctx!.globalAlpha = alpha
+      // Draw blobs
+      for (const b of blobs) {
+        const p = Math.max(0, Math.min(1, (frame - b.delay) / 8))
+        if (p <= 0) continue
+        const a = splashAlpha * 0.55 * p
+        if (a < 0.01) continue
+        ctx!.globalAlpha = a
         ctx!.save()
-        ctx!.translate(s.x, s.y)
-        ctx!.rotate(s.rot)
-        ctx!.fillStyle = color
-        // Draw irregular shard
+        ctx!.translate(b.x, b.y)
+        ctx!.rotate(b.rot)
         ctx!.beginPath()
-        ctx!.moveTo(-s.size / 2, -s.size / 2)
-        ctx!.lineTo(s.size / 2, -s.size / 3)
-        ctx!.lineTo(s.size / 2, s.size / 2)
-        ctx!.lineTo(-s.size / 3, s.size / 3)
-        ctx!.closePath()
+        ctx!.ellipse(0, 0, b.rx * p, b.ry * p, 0, 0, Math.PI * 2)
+        ctx!.fillStyle = `rgba(${rgb}, 1)`
         ctx!.fill()
         ctx!.restore()
       }
+
+      // Draw spikes
+      for (const sp of spikes) {
+        const p = Math.max(0, Math.min(1, (frame - sp.delay) / 6))
+        if (p <= 0) continue
+        const a = splashAlpha * 0.45 * p
+        if (a < 0.01) continue
+        ctx!.globalAlpha = a
+        ctx!.save()
+        ctx!.translate(cx, cy)
+        ctx!.rotate(sp.angle)
+        ctx!.beginPath()
+        ctx!.ellipse(0, 0, sp.len * p, sp.w / 2, 0, 0, Math.PI * 2)
+        ctx!.fillStyle = `rgba(${rgb}, 1)`
+        ctx!.fill()
+        ctx!.restore()
+      }
+
+      // Draw highlight sheen (white overlay for water look)
+      ctx!.globalAlpha = splashAlpha * 0.18
+      for (let i = 0; i < 8; i++) {
+        const a = Math.random() * Math.PI * 2
+        const d = 20 + Math.random() * 100
+        ctx!.beginPath()
+        ctx!.ellipse(
+          cx + Math.cos(a) * d,
+          cy + Math.sin(a) * d,
+          15 + Math.random() * 40,
+          8 + Math.random() * 20,
+          Math.random() * Math.PI,
+          0, Math.PI * 2,
+        )
+        ctx!.fillStyle = "#ffffff"
+        ctx!.fill()
+      }
+
+      // Draw droplets
+      ctx!.globalAlpha = splashAlpha * 0.85
+      for (const d of drops) {
+        if (d.life > 60) continue
+        d.trail.push({ x: d.x, y: d.y })
+        if (d.trail.length > 6) d.trail.shift()
+        d.x += d.vx
+        d.y += d.vy
+        d.vy += 0.08
+        d.vx *= 0.99
+        d.life++
+
+        const da = splashAlpha * Math.max(0, 1 - d.life / 60)
+        // Trail
+        for (let t = 0; t < d.trail.length; t++) {
+          ctx!.globalAlpha = da * (t / d.trail.length) * 0.3
+          ctx!.beginPath()
+          ctx!.arc(d.trail[t].x, d.trail[t].y, d.r * (t / d.trail.length) * 0.6, 0, Math.PI * 2)
+          ctx!.fillStyle = `rgba(${rgb}, 1)`
+          ctx!.fill()
+        }
+        // Droplet
+        ctx!.globalAlpha = da
+        ctx!.beginPath()
+        ctx!.arc(d.x, d.y, d.r, 0, Math.PI * 2)
+        ctx!.fillStyle = `rgba(${rgb}, 1)`
+        ctx!.fill()
+      }
+
       ctx!.globalAlpha = 1
 
-      if (shardAlive || edgeAlive) {
-        frame = requestAnimationFrame(animate)
+      frame++
+      if (frame <= totalFrames + 20) {
+        animId = requestAnimationFrame(animate)
       } else if (!doneRef.current) {
         doneRef.current = true
-        setTimeout(() => onComplete?.(), 500)
+        onComplete?.()
       }
     }
 
-    frame = requestAnimationFrame(animate)
-    return () => cancelAnimationFrame(frame)
+    animId = requestAnimationFrame(animate)
+    return () => cancelAnimationFrame(animId)
   }, [mode, color, onComplete])
-
-  // Auto-complete after flying
-  useEffect(() => {
-    if (mode !== "flying") return
-    const timer = setTimeout(() => onComplete?.(), 2000)
-    return () => clearTimeout(timer)
-  }, [mode, onComplete])
 
   // Hide hint after 3s
   useEffect(() => {
@@ -186,7 +251,6 @@ export function BalloonPresentation({ color, onComplete }: BalloonPresentationPr
       <AnimatePresence>
         {mode === "idle" && (
           <motion.div
-            ref={balloonRef}
             key="balloon"
             initial={{ scale: 0 }}
             animate={{ scale: 1, y: [0, -12, 0] }}
@@ -210,7 +274,6 @@ export function BalloonPresentation({ color, onComplete }: BalloonPresentationPr
                 </defs>
                 <ellipse cx="70" cy="85" rx="60" ry="80" fill="url(#balloonGrad)" />
                 <polygon points="70,160 60,170 80,170" fill={color} />
-                {/* Highlight */}
                 <ellipse cx="48" cy="65" rx="12" ry="16" fill="rgba(255,255,255,0.25)" transform="rotate(-15 48 65)" />
               </svg>
             </motion.button>
@@ -230,7 +293,6 @@ export function BalloonPresentation({ color, onComplete }: BalloonPresentationPr
                   strokeDasharray={pullDir ? "4 2" : "none"}
                 />
               </svg>
-              {/* Pull indicator */}
               {pullAmount > 0 && (
                 <motion.div
                   initial={{ opacity: 0 }}
