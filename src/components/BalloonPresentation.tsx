@@ -78,34 +78,34 @@ export function BalloonPresentation({ color, onComplete }: BalloonPresentationPr
     const cy = H / 2
     const rgb = hexToRgb(color)
 
-    const totalFrames = 130
-    const onCompleteFrame = 75
+    const totalFrames = 240
+    const onCompleteFrame = 150
 
-    // Splat blobs — irregular overlapping ellipses
+    // Splat blobs — large overlapping blobs for full screen coverage
     const blobs: { x: number; y: number; rx: number; ry: number; rot: number; delay: number; expand: number }[] = []
-    for (let i = 0; i < 20; i++) {
+    for (let i = 0; i < 35; i++) {
       const angle = Math.random() * Math.PI * 2
-      const dist = 10 + Math.random() * 80
+      const dist = Math.random() * 40
       blobs.push({
-        x: cx + Math.cos(angle) * dist * 0.2,
-        y: cy + Math.sin(angle) * dist * 0.2,
-        rx: 40 + Math.random() * 160,
-        ry: 30 + Math.random() * 120,
+        x: cx + Math.cos(angle) * dist,
+        y: cy + Math.sin(angle) * dist,
+        rx: 80 + Math.random() * 250,
+        ry: 60 + Math.random() * 200,
         rot: Math.random() * Math.PI,
-        delay: Math.random() * 4,
-        expand: 0.6 + Math.random() * 0.8,
+        delay: Math.random() * 3,
+        expand: 0.8 + Math.random() * 0.4,
       })
     }
 
-    // Radial spikes
-    const spikes: { angle: number; len: number; w: number; delay: number }[] = []
-    for (let i = 0; i < 40; i++) {
+    // Radial splats — few, round, wide
+    const spikes: { angle: number; rx: number; ry: number; delay: number }[] = []
+    for (let i = 0; i < 18; i++) {
       const angle = Math.random() * Math.PI * 2
       spikes.push({
         angle,
-        len: 80 + Math.random() * 250,
-        w: 4 + Math.random() * 30,
-        delay: Math.random() * 4,
+        rx: 100 + Math.random() * 200,
+        ry: 30 + Math.random() * 60,
+        delay: Math.random() * 3,
       })
     }
 
@@ -140,11 +140,11 @@ export function BalloonPresentation({ color, onComplete }: BalloonPresentationPr
         setTimeout(() => onComplete?.(), 100)
       }
 
-      // Draw blobs
+      // Draw blobs — full opacity, covers everything
       for (const b of blobs) {
         const p = Math.max(0, Math.min(1, (frame - b.delay) / 8))
         if (p <= 0) continue
-        const a = splashAlpha * 0.55 * p
+        const a = splashAlpha * 0.95 * p
         if (a < 0.01) continue
         ctx!.globalAlpha = a
         ctx!.save()
@@ -157,34 +157,34 @@ export function BalloonPresentation({ color, onComplete }: BalloonPresentationPr
         ctx!.restore()
       }
 
-      // Draw spikes
+      // Draw splats — round, wide, few
       for (const sp of spikes) {
         const p = Math.max(0, Math.min(1, (frame - sp.delay) / 6))
         if (p <= 0) continue
-        const a = splashAlpha * 0.45 * p
+        const a = splashAlpha * 0.85 * p
         if (a < 0.01) continue
         ctx!.globalAlpha = a
         ctx!.save()
         ctx!.translate(cx, cy)
         ctx!.rotate(sp.angle)
         ctx!.beginPath()
-        ctx!.ellipse(0, 0, sp.len * p, sp.w / 2, 0, 0, Math.PI * 2)
+        ctx!.ellipse(0, 0, sp.rx * p, sp.ry * p, 0, 0, Math.PI * 2)
         ctx!.fillStyle = `rgba(${rgb}, 1)`
         ctx!.fill()
         ctx!.restore()
       }
 
-      // Draw highlight sheen (white overlay for water look)
-      ctx!.globalAlpha = splashAlpha * 0.18
-      for (let i = 0; i < 8; i++) {
+      // Draw highlight sheen (white overlay for wet look)
+      ctx!.globalAlpha = splashAlpha * 0.15
+      for (let i = 0; i < 12; i++) {
         const a = Math.random() * Math.PI * 2
-        const d = 20 + Math.random() * 100
+        const d = 10 + Math.random() * 120
         ctx!.beginPath()
         ctx!.ellipse(
           cx + Math.cos(a) * d,
           cy + Math.sin(a) * d,
-          15 + Math.random() * 40,
-          8 + Math.random() * 20,
+          20 + Math.random() * 60,
+          12 + Math.random() * 30,
           Math.random() * Math.PI,
           0, Math.PI * 2,
         )

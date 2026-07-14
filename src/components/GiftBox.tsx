@@ -88,15 +88,15 @@ const topCenterY = (bfyT + blyT + bryT + blbYT) / 4
 
 // Colors
 const C = {
-  boxFront: "#1e3a5f",
-  boxFrontDark: "#152d4a",
-  boxRight: "#162d4d",
-  boxRightDark: "#10203d",
-  boxTop: "#25476e",
-  boxTopLight: "#2d5585",
-  lidFront: "#264a70",
-  lidRight: "#1e3a5f",
-  lidTop: "#2d5585",
+  boxFront: "#c41e3a",
+  boxFrontDark: "#a01830",
+  boxRight: "#a01830",
+  boxRightDark: "#801424",
+  boxTop: "#d42540",
+  boxTopLight: "#e03050",
+  lidFront: "#d42540",
+  lidRight: "#b91c30",
+  lidTop: "#e03050",
   gold: "#d4a843",
   goldLight: "#f5e3a0",
   goldDark: "#b8892e",
@@ -342,42 +342,42 @@ export function GiftBox({ emoji, message, from, photo, onComplete }: GiftBoxProp
               </svg>
             </motion.div>
 
-            {/* Front face falling left-down */}
+            {/* Front face falling left-down — isometric shape */}
             <motion.div
               key="wall-front"
               initial={{ y: 0, x: 0, opacity: 1, rotate: 0 }}
-              animate={{ x: -120, y: 80, opacity: 0, rotate: -15 }}
+              animate={{ x: -130, y: 90, opacity: 0, rotate: -12 }}
               transition={{ duration: 0.5, ease: "easeOut", delay: 0.65 }}
               className="absolute"
             >
-              <svg width="120" height="170" viewBox="0 0 120 170">
-                <polygon points={`0,0 103.9,0 103.9,100 0,100`} fill={C.boxFront} opacity="0.7" />
+              <svg width="340" height="300" viewBox="0 0 340 300">
+                <polygon points={BOX_FRONT} fill={C.boxFront} stroke={C.boxFrontDark} strokeWidth="0.5" opacity="0.85" />
               </svg>
             </motion.div>
 
-            {/* Right face falling right-down */}
+            {/* Right face falling right-down — isometric shape */}
             <motion.div
               key="wall-right"
               initial={{ y: 0, x: 0, opacity: 1, rotate: 0 }}
-              animate={{ x: 120, y: 80, opacity: 0, rotate: 15 }}
+              animate={{ x: 130, y: 90, opacity: 0, rotate: 12 }}
               transition={{ duration: 0.5, ease: "easeOut", delay: 0.7 }}
               className="absolute"
             >
-              <svg width="170" height="170" viewBox="0 0 170 170">
-                <polygon points={`0,0 103.9,0 103.9,100 0,100`} fill={C.boxRight} opacity="0.7" />
+              <svg width="340" height="300" viewBox="0 0 340 300">
+                <polygon points={BOX_RIGHT} fill={C.boxRight} stroke={C.boxRightDark} strokeWidth="0.5" opacity="0.85" />
               </svg>
             </motion.div>
 
-            {/* Top face (base box) falling down */}
+            {/* Top face (base box) falling down — isometric shape */}
             <motion.div
               key="wall-top"
-              initial={{ y: 0, opacity: 1 }}
-              animate={{ y: 100, opacity: 0, scale: 0.6 }}
+              initial={{ y: 0, opacity: 1, scale: 1 }}
+              animate={{ y: 120, opacity: 0, scale: 0.5 }}
               transition={{ duration: 0.4, ease: "easeOut", delay: 0.75 }}
               className="absolute"
             >
-              <svg width="220" height="130" viewBox="0 0 220 130">
-                <polygon points={`0,60 103.9,0 0,-60 -103.9,0`} fill={C.boxTop} opacity="0.7" />
+              <svg width="340" height="300" viewBox="0 0 340 300">
+                <polygon points={BOX_TOP} fill={C.boxTop} stroke={C.boxTop} strokeWidth="0.5" opacity="0.85" />
               </svg>
             </motion.div>
           </motion.div>
