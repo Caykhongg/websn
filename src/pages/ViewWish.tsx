@@ -105,7 +105,7 @@ export default function ViewWish() {
       case "balloon":
         return <BalloonPresentation color={wish.balloonColor || "#f472b6"} onComplete={handlePresentationDone} />
       case "firework":
-        return <Firework onShowInfo={handlePresentationDone} />
+        return <Firework onComplete={handlePresentationDone} />
       default:
         return null
     }

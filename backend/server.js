@@ -92,7 +92,7 @@ app.post("/api/wishes", upload.single("photo"), (req, res) => {
       from: from.trim(),
       message: message.trim(),
       emoji: emoji || "🎂",
-      effects: effects || [],
+      effects: JSON.parse(typeof effects === "string" ? effects : "[]"),
       presentationType: presentationType || "gift",
       balloonColor: balloonColor || null,
       photo: photoPath,

@@ -2,10 +2,10 @@ import { useState, useCallback, useRef, useEffect } from "react"
 import { motion, AnimatePresence } from "motion/react"
 
 interface FireworkProps {
-  onShowInfo: () => void
+  onComplete: () => void
 }
 
-export function Firework({ onShowInfo }: FireworkProps) {
+export function Firework({ onComplete }: FireworkProps) {
   const [started, setStarted] = useState(false)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const startedRef = useRef(false)
@@ -193,7 +193,7 @@ export function Firework({ onShowInfo }: FireworkProps) {
           doneRef.current = true
           ctx!.fillStyle = "#ffffff"
           ctx!.fillRect(0, 0, W, H)
-          setTimeout(() => onShowInfo(), 500)
+          setTimeout(() => onComplete(), 500)
           return
         }
 
@@ -205,7 +205,7 @@ export function Firework({ onShowInfo }: FireworkProps) {
 
     frame = requestAnimationFrame(animate)
     return () => cancelAnimationFrame(frame)
-  }, [started, onShowInfo])
+  }, [started, onComplete])
 
   return (
     <div className="relative flex items-center justify-center w-full min-h-[60vh]">
