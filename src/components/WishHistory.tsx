@@ -2,10 +2,10 @@ import { useState, useEffect } from "react"
 import { useNavigate } from "react-router-dom"
 import { getAllWishes, deleteWish } from "../lib/store"
 import { encodeToBase64 } from "../lib/encoding"
-import type { WishData, EffectType } from "../lib/types"
+import type { WishData, EffectType, PresentationType } from "../lib/types"
 
 interface WishHistoryProps {
-  onLoad: (data: { from: string; message: string; photo?: string; emoji: string; effects: EffectType[] }) => void
+  onLoad: (data: { from: string; message: string; photo?: string; emoji: string; effects: EffectType[]; presentationType: PresentationType; balloonColor?: string }) => void
 }
 
 export function WishHistory({ onLoad }: WishHistoryProps) {
@@ -17,7 +17,15 @@ export function WishHistory({ onLoad }: WishHistoryProps) {
   }, [])
 
   const handleReShare = (wish: WishData) => {
-    const payload = { from: wish.from, message: wish.message, emoji: wish.emoji, effects: wish.effects, createdAt: wish.createdAt }
+    const payload: Record<string, unknown> = {
+      from: wish.from,
+      message: wish.message,
+      emoji: wish.emoji,
+      effects: wish.effects,
+      presentationType: wish.presentationType,
+      createdAt: wish.createdAt,
+    }
+    if (wish.balloonColor) payload.balloonColor = wish.balloonColor
     const encoded = encodeToBase64(payload)
     const url = `${window.location.origin}/wish/${wish.id}#${encoded}`
     navigator.clipboard.writeText(url).catch(() => {})
@@ -55,7 +63,7 @@ export function WishHistory({ onLoad }: WishHistoryProps) {
             </div>
             <div className="flex gap-1.5 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
               <button
-                onClick={() => onLoad({ from: wish.from, message: wish.message, photo: wish.photo, emoji: wish.emoji, effects: wish.effects })}
+                onClick={() => onLoad({ from: wish.from, message: wish.message, photo: wish.photo, emoji: wish.emoji, effects: wish.effects, presentationType: wish.presentationType, balloonColor: wish.balloonColor })}
                 className="px-2.5 py-1.5 text-xs rounded-lg bg-wish-50 text-wish-600 hover:bg-wish-100 transition-colors"
                 title="Edit and reuse"
               >

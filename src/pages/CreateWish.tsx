@@ -8,7 +8,23 @@ import { WishHistory } from "../components/WishHistory"
 import { GooeyBackground } from "../components/ui/gooey-background"
 import { saveWish, generateId } from "../lib/store"
 import { encodeToBase64 } from "../lib/encoding"
-import type { WishFormData, EffectType } from "../lib/types"
+import type { WishFormData, EffectType, PresentationType } from "../lib/types"
+
+const PRESENTATIONS: { id: PresentationType; label: string; icon: string; desc: string }[] = [
+  { id: "gift", label: "Gift Box", icon: "🎁", desc: "Box opens with lid flying off" },
+  { id: "cake", label: "Birthday Cake", icon: "🎂", desc: "Candle lights up with firework" },
+  { id: "balloon", label: "Balloons", icon: "🎈", desc: "Balloons pop filling the screen" },
+  { id: "firework", label: "Fireworks", icon: "🎆", desc: "Orbits converge and explode" },
+]
+
+const BALLOON_COLORS = [
+  { name: "Pink", value: "#f472b6" },
+  { name: "Red", value: "#ef4444" },
+  { name: "Gold", value: "#facc15" },
+  { name: "Blue", value: "#60a5fa" },
+  { name: "Purple", value: "#a78bfa" },
+  { name: "Green", value: "#4ade80" },
+]
 
 const EFFECTS_LIST: { id: EffectType; label: string; icon: string }[] = [
   { id: "balloons", label: "Balloons", icon: "🎈" },
@@ -25,6 +41,8 @@ export function CreateWish() {
     photo: undefined,
     emoji: "🎂",
     effects: ["balloons", "confetti"],
+    presentationType: "gift",
+    balloonColor: "#f472b6",
   })
   const [errors, setErrors] = useState<Partial<Record<keyof WishFormData, string>>>({})
   const [showQR, setShowQR] = useState(false)
@@ -71,6 +89,8 @@ export function CreateWish() {
       photo: form.photo,
       emoji: form.emoji,
       effects: form.effects,
+      presentationType: form.presentationType,
+      balloonColor: form.presentationType === "balloon" ? form.balloonColor : undefined,
       createdAt: Date.now(),
     }
 
@@ -82,13 +102,15 @@ export function CreateWish() {
     }
 
     setWishId(id)
-    const payload = {
+    const payload: Record<string, unknown> = {
       from: wish.from,
       message: wish.message,
       emoji: wish.emoji,
       effects: wish.effects,
+      presentationType: wish.presentationType,
       createdAt: wish.createdAt,
     }
+    if (wish.balloonColor) payload.balloonColor = wish.balloonColor
     const encoded = encodeToBase64(payload)
     const url = `${window.location.origin}/wish/${id}#${encoded}`
     setWishUrl(url)
@@ -101,7 +123,7 @@ export function CreateWish() {
     navigate(`/wish/${wishId}`)
   }
 
-  const handleLoadWish = (data: { from: string; message: string; photo?: string; emoji: string; effects: EffectType[] }) => {
+  const handleLoadWish = (data: { from: string; message: string; photo?: string; emoji: string; effects: EffectType[]; presentationType: PresentationType; balloonColor?: string }) => {
     setForm(data)
     window.scrollTo({ top: 0, behavior: "smooth" })
   }
@@ -211,6 +233,63 @@ export function CreateWish() {
                 onSelect={(v) => updateField("emoji", v)}
               />
             </div>
+
+            <div className="space-y-3">
+              <label className="block text-sm font-medium text-gray-700">
+                Presentation style
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                {PRESENTATIONS.map((p) => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => updateField("presentationType", p.id)}
+                    className={`
+                      flex flex-col items-center gap-1 px-3 py-3 rounded-xl border-2 transition-all duration-200 text-center
+                      ${form.presentationType === p.id
+                        ? "border-wish-400 bg-wish-50 text-wish-700 shadow-sm"
+                        : "border-gray-200 bg-white text-gray-600 hover:border-wish-300 hover:bg-wish-50/50"
+                      }
+                    `}
+                  >
+                    <span className="text-2xl">{p.icon}</span>
+                    <span className="text-xs font-medium">{p.label}</span>
+                    <span className="text-[10px] text-gray-400 leading-tight">{p.desc}</span>
+                    {form.presentationType === p.id && (
+                      <svg className="w-3 h-3 text-wish-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                      </svg>
+                    )}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {form.presentationType === "balloon" && (
+              <div className="space-y-3">
+                <label className="block text-sm font-medium text-gray-700">
+                  Balloon color
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {BALLOON_COLORS.map((c) => (
+                    <button
+                      key={c.name}
+                      type="button"
+                      onClick={() => updateField("balloonColor", c.value)}
+                      className={`
+                        w-10 h-10 rounded-full border-2 transition-all
+                        ${form.balloonColor === c.value
+                          ? "border-wish-500 scale-110 shadow-md"
+                          : "border-gray-300 hover:scale-105"
+                        }
+                      `}
+                      style={{ backgroundColor: c.value }}
+                      aria-label={c.name}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
 
             <div className="space-y-3">
               <label className="block text-sm font-medium text-gray-700">

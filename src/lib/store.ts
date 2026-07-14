@@ -30,7 +30,8 @@ function isValidWishData(item: unknown): item is WishData {
     typeof obj.message === "string" &&
     typeof obj.emoji === "string" &&
     Array.isArray(obj.effects) &&
-    typeof obj.createdAt === "number"
+    typeof obj.createdAt === "number" &&
+    typeof obj.presentationType === "string"
   )
 }
 

@@ -1,3 +1,5 @@
+export type PresentationType = "gift" | "cake" | "balloon" | "firework"
+
 export interface WishData {
   id: string
   from: string
@@ -5,6 +7,8 @@ export interface WishData {
   photo?: string
   emoji: string
   effects: EffectType[]
+  presentationType: PresentationType
+  balloonColor?: string
   createdAt: number
 }
 
@@ -16,4 +20,6 @@ export interface WishFormData {
   photo?: string
   emoji: string
   effects: EffectType[]
+  presentationType: PresentationType
+  balloonColor?: string
 }
