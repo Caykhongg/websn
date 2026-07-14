@@ -1,19 +1,20 @@
-import { useEffect, useRef } from "react"
+import { useState, useCallback, useRef, useEffect } from "react"
+import { motion, AnimatePresence } from "motion/react"
 
 interface FireworkProps {
-  emoji: string
-  message: string
-  from: string
-  photo?: string
   onShowInfo: () => void
 }
 
 export function Firework({ onShowInfo }: FireworkProps) {
+  const [started, setStarted] = useState(false)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const startedRef = useRef(false)
+  const doneRef = useRef(false)
+
+  const handleStart = useCallback(() => setStarted(true), [])
 
   useEffect(() => {
-    if (startedRef.current) return
+    if (!started || startedRef.current) return
     startedRef.current = true
 
     const canvas = canvasRef.current
@@ -23,138 +24,151 @@ export function Firework({ onShowInfo }: FireworkProps) {
 
     canvas.width = window.innerWidth
     canvas.height = window.innerHeight
+    const W = canvas.width
+    const H = canvas.height
+    const cx = W / 2
+    const cy = H / 2
 
-    const cx = canvas.width / 2
-    const cy = canvas.height / 2
-    const orbitCount = 6
-    const orbits: { angle: number; radius: number; speed: number; particleCount: number }[] = []
+    const NUM = 25
+    const particles: { x: number; y: number; targetX: number; targetY: number; hue: number; speed: number; t: number; converged: boolean }[] = []
 
-    for (let i = 0; i < orbitCount; i++) {
-      orbits.push({
-        angle: (Math.PI * 2 * i) / orbitCount,
-        radius: 40 + Math.random() * 60,
-        speed: 0.02 + Math.random() * 0.03,
-        particleCount: 30 + Math.floor(Math.random() * 30),
+    for (let i = 0; i < NUM; i++) {
+      particles.push({
+        x: Math.random() * W,
+        y: Math.random() * H,
+        targetX: Math.random() * W,
+        targetY: Math.random() * H,
+        hue: Math.random() * 360,
+        speed: 0.003 + Math.random() * 0.007,
+        t: Math.random() * 2,
+        converged: false,
       })
     }
 
-    const trail: { x: number; y: number; life: number }[] = []
-    let phase: "orbit" | "converge" | "explode" = "orbit"
-    let convergeStart = 0
-    let explodeDone = false
+    const sparks: { x: number; y: number; vx: number; vy: number; hue: number; size: number; life: number; maxLife: number }[] = []
+    let phase: "fly" | "converge" | "explode" = "fly"
+    const START_TIME = performance.now()
+    const MIN_FLY_TIME = 4000
     let frame: number
 
     const animate = (now: number) => {
-      ctx!.fillStyle = "rgba(0,0,0,0.08)"
-      ctx!.fillRect(0, 0, canvas.width, canvas.height)
+      ctx!.clearRect(0, 0, W, H)
 
-      if (phase === "orbit") {
-        for (const o of orbits) {
-          o.angle += o.speed
-          const x = cx + Math.cos(o.angle) * o.radius
-          const y = cy + Math.sin(o.angle) * o.radius
-          trail.push({ x, y, life: 0 })
-          ctx!.fillStyle = `hsl(${o.angle * 30}, 80%, 60%)`
-          ctx!.beginPath()
-          ctx!.arc(x, y, 4, 0, Math.PI * 2)
-          ctx!.fill()
-        }
+      if (phase === "fly") {
+        const elapsed = now - START_TIME
+        let allReady = true
 
-        // Draw trails
-        for (let i = trail.length - 1; i >= 0; i--) {
-          trail[i].life++
-          const alpha = 1 - trail[i].life / 60
-          if (alpha <= 0) {
-            trail.splice(i, 1)
-            continue
+        for (const p of particles) {
+          p.t += p.speed
+          const swayX = Math.sin(p.t * 30 + p.hue) * (100 + Math.sin(p.hue + p.t * 7) * 50)
+          const swayY = Math.cos(p.t * 25 + p.hue * 2) * (80 + Math.cos(p.hue + p.t * 5) * 40)
+          const drawX = p.targetX + swayX
+          const drawY = p.targetY + swayY
+
+          if (p.t > 3 + Math.random() * 2) {
+            p.targetX = Math.random() * W
+            p.targetY = Math.random() * H
+            p.t = 0
           }
-          ctx!.globalAlpha = alpha * 0.5
-          ctx!.fillStyle = "#fff"
-          ctx!.beginPath()
-          ctx!.arc(trail[i].x, trail[i].y, 2, 0, Math.PI * 2)
-          ctx!.fill()
-        }
-        ctx!.globalAlpha = 1
 
-        if (trail.length > 200) {
+          ctx!.fillStyle = `hsla(${p.hue + p.t * 60}, 95%, 65%, 0.85)`
+          ctx!.beginPath()
+          ctx!.arc(drawX, drawY, 5 + Math.sin(p.t * 10) * 2, 0, Math.PI * 2)
+          ctx!.fill()
+
+          ctx!.fillStyle = `hsla(${p.hue + p.t * 60}, 95%, 75%, 0.25)`
+          ctx!.beginPath()
+          ctx!.arc(drawX, drawY, 14, 0, Math.PI * 2)
+          ctx!.fill()
+
+          if (elapsed < MIN_FLY_TIME) allReady = false
+        }
+
+        if (allReady && elapsed >= MIN_FLY_TIME) {
           phase = "converge"
-          convergeStart = now
-          trail.length = 0
         }
 
         frame = requestAnimationFrame(animate)
       } else if (phase === "converge") {
-        const elapsed = (now - convergeStart) / 1000
-        const progress = Math.min(elapsed / 1.5, 1)
+        let allAtCenter = true
 
-        for (const o of orbits) {
-          o.angle += o.speed * (1 - progress * 0.5)
-          const r = o.radius * (1 - progress)
-          const x = cx + Math.cos(o.angle) * r
-          const y = cy + Math.sin(o.angle) * r
-          ctx!.fillStyle = `hsl(${o.angle * 30}, 80%, 60%)`
+        for (const p of particles) {
+          const dx = cx - p.targetX
+          const dy = cy - p.targetY
+          const dist = Math.sqrt(dx * dx + dy * dy)
+
+          if (dist > 3) {
+            allAtCenter = false
+            p.targetX += dx * 0.06
+            p.targetY += dy * 0.06
+          }
+
+          p.t += p.speed
+          const swayX = Math.sin(p.t * 30 + p.hue) * (dist * 0.3)
+          const swayY = Math.cos(p.t * 25 + p.hue * 2) * (dist * 0.3)
+          const drawX = p.targetX + swayX
+          const drawY = p.targetY + swayY
+
+          ctx!.fillStyle = `hsla(${p.hue + p.t * 60}, 95%, 65%, ${0.3 + 0.6 * (1 - dist / 300)})`
           ctx!.beginPath()
-          ctx!.arc(x, y, 4 - progress * 3, 0, Math.PI * 2)
+          ctx!.arc(drawX, drawY, 3 + (1 - dist / 300) * 4, 0, Math.PI * 2)
           ctx!.fill()
         }
 
-        if (progress >= 1) {
+        if (allAtCenter) {
           phase = "explode"
+          // White flash
+          ctx!.fillStyle = "#ffffff"
+          ctx!.fillRect(0, 0, W, H)
+
+          for (let i = 0; i < 500; i++) {
+            const angle = Math.random() * Math.PI * 2
+            const speed = 3 + Math.random() * 20
+            sparks.push({
+              x: cx,
+              y: cy,
+              vx: Math.cos(angle) * speed,
+              vy: Math.sin(angle) * speed,
+              hue: Math.random() * 360,
+              size: 2 + Math.random() * 5,
+              life: 0,
+              maxLife: 50 + Math.random() * 60,
+            })
+          }
         }
 
         frame = requestAnimationFrame(animate)
-      } else if (phase === "explode" && !explodeDone) {
-        explodeDone = true
+      } else if (phase === "explode" && !doneRef.current) {
+        ctx!.fillStyle = "rgba(255,255,255,0.93)"
+        ctx!.fillRect(0, 0, W, H)
 
-        // White flash
-        ctx!.fillStyle = "rgba(255,255,255,1)"
-        ctx!.fillRect(0, 0, canvas.width, canvas.height)
+        let alive = false
+        for (const s of sparks) {
+          if (s.life >= s.maxLife) continue
+          alive = true
+          s.x += s.vx
+          s.y += s.vy
+          s.vy += 0.04
+          s.vx *= 0.99
+          s.life++
+          const alpha = 1 - s.life / s.maxLife
+          ctx!.globalAlpha = alpha
+          ctx!.fillStyle = `hsl(${s.hue}, 100%, ${50 + alpha * 30}%)`
+          ctx!.beginPath()
+          ctx!.arc(s.x, s.y, s.size, 0, Math.PI * 2)
+          ctx!.fill()
+        }
+        ctx!.globalAlpha = 1
 
-        // Explosion particles
-        const particles: { x: number; y: number; vx: number; vy: number; life: number; maxLife: number; size: number }[] = []
-        for (let i = 0; i < 400; i++) {
-          const angle = (Math.PI * 2 * i) / 400 + (Math.random() - 0.5) * 0.2
-          const speed = 5 + Math.random() * 15
-          particles.push({
-            x: cx,
-            y: cy,
-            vx: Math.cos(angle) * speed,
-            vy: Math.sin(angle) * speed,
-            life: 0,
-            maxLife: 50 + Math.random() * 40,
-            size: 2 + Math.random() * 4,
-          })
+        if (!alive) {
+          doneRef.current = true
+          ctx!.fillStyle = "#ffffff"
+          ctx!.fillRect(0, 0, W, H)
+          setTimeout(() => onShowInfo(), 500)
+          return
         }
 
-        const explodeFrame = () => {
-          ctx!.fillStyle = "rgba(255,255,255,0.92)"
-          ctx!.fillRect(0, 0, canvas.width, canvas.height)
-
-          let alive = false
-          for (const p of particles) {
-            if (p.life >= p.maxLife) continue
-            alive = true
-            p.x += p.vx
-            p.y += p.vy
-            p.vy += 0.03
-            p.life++
-            const alpha = 1 - p.life / p.maxLife
-            ctx!.globalAlpha = alpha
-            ctx!.fillStyle = "#fff"
-            ctx!.beginPath()
-            ctx!.arc(p.x, p.y, p.size, 0, Math.PI * 2)
-            ctx!.fill()
-          }
-          ctx!.globalAlpha = 1
-
-          if (alive) {
-            requestAnimationFrame(explodeFrame)
-          } else {
-            onShowInfo()
-          }
-        }
-        explodeFrame()
-        return
+        frame = requestAnimationFrame(animate)
       } else {
         frame = requestAnimationFrame(animate)
       }
@@ -162,7 +176,39 @@ export function Firework({ onShowInfo }: FireworkProps) {
 
     frame = requestAnimationFrame(animate)
     return () => cancelAnimationFrame(frame)
-  }, [onShowInfo])
+  }, [started, onShowInfo])
 
-  return <canvas ref={canvasRef} className="fixed inset-0 pointer-events-none z-50" />
+  return (
+    <div className="relative flex items-center justify-center w-full min-h-[60vh]">
+      <canvas
+        ref={canvasRef}
+        className="fixed inset-0 pointer-events-none z-40"
+        style={{ display: started ? "block" : "none" }}
+      />
+
+      <AnimatePresence>
+        {!started ? (
+          <motion.button
+            key="firework-start"
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={handleStart}
+            className="relative cursor-pointer select-none outline-none"
+            aria-label="Start fireworks"
+          >
+            <motion.div
+              animate={{ scale: [1, 1.1, 1] }}
+              transition={{ repeat: Infinity, duration: 1.5, ease: "easeInOut" }}
+              className="text-[120px] md:text-[160px] leading-none"
+            >
+              🎆
+            </motion.div>
+            <p className="text-center text-sm text-white/70 mt-2 font-medium">Tap for fireworks!</p>
+          </motion.button>
+        ) : null}
+      </AnimatePresence>
+    </div>
+  )
 }
