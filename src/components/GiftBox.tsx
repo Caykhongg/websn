@@ -9,94 +9,173 @@ interface GiftBoxProps {
   onComplete?: () => void
 }
 
-const W = 160
-const H = 100
-const D = 110
-const L = 4
-const LW = W + L * 2
-const LH = H + L
-const LD = D + L * 2
+// Isometric projection constants
+const C30 = 0.866
+const S30 = 0.5
+const OX = 170
+const OY = 150
 
-const RED = { front: "#b91c30", back: "#7f1422", left: "#8f1828", right: "#a61c2e", top: "#c41e34", bottom: "#6e111e" }
-const LID = { front: "#d42038", back: "#961a2c", left: "#a61c2e", right: "#c41e34", top: "#e6223c", bottom: "#b91c30" }
-const GOLD = "#d4a843"
-const GOLD_L = "#e8c98a"
-const GOLD_D = "#b8892e"
-
-const ribbonStyle: React.CSSProperties = {
-  position: "absolute", background: `linear-gradient(135deg, ${GOLD_D}, ${GOLD_L}, ${GOLD})`,
+function iso(x: number, y: number, z: number): [number, number] {
+  return [OX + (x - y) * C30, OY + (x + y) * S30 - z]
 }
 
-function BoxFace({
-  style, children, className,
-}: {
-  style: React.CSSProperties
-  children?: React.ReactNode
-  className?: string
-}) {
-  return <div className={`absolute ${className || ""}`} style={style}>{children}</div>
+// Box 3D dimensions
+const BW = 120, BD = 120, BH = 100
+const LW = 132, LD = 132, LH = 14 // lid slightly larger
+
+// Compute all vertices
+const [bfx, bfy] = iso(BW / 2, BD / 2, 0) // box front-right-bottom
+const [bfxT, bfyT] = iso(BW / 2, BD / 2, BH) // box front-right-top
+const [blx, bly] = iso(-BW / 2, BD / 2, 0) // box front-left-bottom
+const [blxT, blyT] = iso(-BW / 2, BD / 2, BH) // box front-left-top
+const [brx, bry] = iso(BW / 2, -BD / 2, 0) // box back-right-bottom
+const [brxT, bryT] = iso(BW / 2, -BD / 2, BH) // box back-right-top
+const [blbXT, blbYT] = iso(-BW / 2, -BD / 2, BH) // box back-left-top
+
+// Lid vertices
+const [lfx, lfy] = iso(LW / 2, LD / 2, BH) // lid front-right-bottom
+const [lfxT, lfyT] = iso(LW / 2, LD / 2, BH + LH) // lid front-right-top
+const [llx, lly] = iso(-LW / 2, LD / 2, BH) // lid front-left-bottom
+const [llxT, llyT] = iso(-LW / 2, LD / 2, BH + LH) // lid front-left-top
+const [lrx, lry] = iso(LW / 2, -LD / 2, BH) // lid back-right-bottom
+const [lrxT, lryT] = iso(LW / 2, -LD / 2, BH + LH) // lid back-right-top
+const [lbxT, lbyT] = iso(-LW / 2, -LD / 2, BH + LH) // lid back-left-top
+
+// Box face polygons
+const BOX_TOP = `${bfxT},${bfyT} ${blxT},${blyT} ${blbXT},${blbYT} ${brxT},${bryT}`
+const BOX_FRONT = `${bfx},${bfy} ${blx},${bly} ${blxT},${blyT} ${bfxT},${bfyT}`
+const BOX_RIGHT = `${brx},${bry} ${bfx},${bfy} ${bfxT},${bfyT} ${brxT},${bryT}`
+
+// Lid face polygons
+const LID_TOP = `${lfxT},${lfyT} ${llxT},${llyT} ${lbxT},${lbyT} ${lrxT},${lryT}`
+const LID_FRONT = `${lfx},${lfy} ${llx},${lly} ${llxT},${llyT} ${lfxT},${lfyT}`
+const LID_RIGHT = `${lrx},${lry} ${lfx},${lfy} ${lfxT},${lfyT} ${lrxT},${lryT}`
+
+// Ribbon helper — returns polygon points for a ribbon strip
+function ribbonStrip(x1: number, y1: number, x2: number, y2: number, w: number): string {
+  const dx = x2 - x1, dy = y2 - y1
+  const len = Math.sqrt(dx * dx + dy * dy) || 1
+  const px = (-dy / len) * w / 2
+  const py = (dx / len) * w / 2
+  return `${x1 + px},${y1 + py} ${x1 - px},${y1 - py} ${x2 - px},${y2 - py} ${x2 + px},${y2 + py}`
 }
 
-function RibbonCross({ w, h, verticalW, horizontalH }: { w: number; h: number; verticalW?: number; horizontalH?: number }) {
-  const vw = verticalW ?? 12
-  const hh = horizontalH ?? 10
+// Box ribbon
+const fCx = (bfx + blx) / 2
+const fCy = (bfy + bly) / 2
+const fCxT = (bfxT + blxT) / 2
+const fCyT = (bfyT + blyT) / 2
+
+const rCx = (brx + bfx) / 2
+const rCy = (bry + bfy) / 2
+const rCxT = (brxT + bfxT) / 2
+const rCyT = (bryT + bfyT) / 2
+
+const tFrontCx = (bfxT + blxT) / 2
+const tFrontCy = (bfyT + blyT) / 2
+const tBackCx = (brxT + blbXT) / 2
+const tBackCy = (bryT + blbYT) / 2
+const tLeftCx = (blxT + blbXT) / 2
+const tLeftCy = (blyT + blbYT) / 2
+const tRightCx = (bfxT + brxT) / 2
+const tRightCy = (bfyT + bryT) / 2
+
+const RB_W = 14
+
+// Center of box top face
+const topCenterX = (bfxT + blxT + brxT + blbXT) / 4
+const topCenterY = (bfyT + blyT + bryT + blbYT) / 4
+
+// Colors
+const C = {
+  boxFront: "#1e3a5f",
+  boxFrontDark: "#152d4a",
+  boxRight: "#162d4d",
+  boxRightDark: "#10203d",
+  boxTop: "#25476e",
+  boxTopLight: "#2d5585",
+  lidFront: "#264a70",
+  lidRight: "#1e3a5f",
+  lidTop: "#2d5585",
+  gold: "#d4a843",
+  goldLight: "#f5e3a0",
+  goldDark: "#b8892e",
+  goldShadow: "#a07828",
+}
+
+const ribbonGrad = `linear-gradient(135deg, ${C.goldDark}, ${C.goldLight}, ${C.gold})`
+
+function GoldRibbon({ points }: { points: string }) {
   return (
-    <>
-      <div style={{ ...ribbonStyle, left: `${(w - vw) / 2}px`, width: vw, height: "100%", top: 0 }} />
-      <div style={{ ...ribbonStyle, top: `${(h - hh) / 2}px`, height: hh, width: "100%", left: 0 }} />
-    </>
+    <polygon
+      points={points}
+      fill={ribbonGrad}
+      stroke={C.goldDark}
+      strokeWidth="0.5"
+      opacity="0.92"
+    />
   )
 }
 
-function BowSVG({ size = 100 }: { size?: number }) {
-  const s = size
+function BoxShadow() {
   return (
-    <svg width={s} height={s * 0.9} viewBox={`0 0 120 108`}>
+    <ellipse
+      cx={OX}
+      cy={OY + 115}
+      rx={100}
+      ry={18}
+      fill="rgba(0,0,0,0.15)"
+      filter="url(#shadowBlur)"
+    />
+  )
+}
+
+function BowSVG() {
+  return (
+    <g transform={`translate(${topCenterX}, ${topCenterY - 5})`}>
       <defs>
-        <radialGradient id="bowGrad" cx="50%" cy="40%" r="60%">
-          <stop offset="0%" stopColor={GOLD_L} />
-          <stop offset="60%" stopColor={GOLD} />
-          <stop offset="100%" stopColor={GOLD_D} />
+        <radialGradient id="bowGrad" cx="40%" cy="30%" r="70%">
+          <stop offset="0%" stopColor={C.goldLight} />
+          <stop offset="50%" stopColor={C.gold} />
+          <stop offset="100%" stopColor={C.goldDark} />
         </radialGradient>
         <filter id="bowShadow">
-          <feDropShadow dx="0" dy="2" stdDeviation="2" floodColor="#000" floodOpacity="0.3" />
+          <feDropShadow dx="1" dy="2" stdDeviation="2" floodColor="#000" floodOpacity="0.35" />
         </filter>
       </defs>
       <g filter="url(#bowShadow)">
-        {/* Left loop - back */}
-        <path d="M60,36 C30,10 10,38 55,46" fill="url(#bowGrad)" opacity="0.7" />
-        {/* Left loop - front */}
-        <path d="M60,36 C20,20 5,55 55,48" fill="url(#bowGrad)" />
-        {/* Left loop highlight */}
-        <path d="M52,32 C30,22 18,42 48,42" fill={GOLD_L} opacity="0.4" />
-        {/* Right loop - back */}
-        <path d="M60,36 C90,10 110,38 65,46" fill="url(#bowGrad)" opacity="0.7" />
-        {/* Right loop - front */}
-        <path d="M60,36 C100,20 115,55 65,48" fill="url(#bowGrad)" />
-        {/* Right loop highlight */}
-        <path d="M68,32 C90,22 102,42 72,42" fill={GOLD_L} opacity="0.4" />
+        {/* Left loops */}
+        <path d="M0,-5 C-40,-30 -55,10 -5,5" fill="url(#bowGrad)" opacity="0.85" />
+        <path d="M0,-5 C-30,-40 -45,0 -5,3" fill="url(#bowGrad)" />
+        <path d="M-5,-10 C-25,-20 -35,8 -5,0" fill={C.goldLight} opacity="0.35" />
+        {/* Right loops */}
+        <path d="M0,-5 C40,-30 55,10 5,5" fill="url(#bowGrad)" opacity="0.85" />
+        <path d="M0,-5 C30,-40 45,0 5,3" fill="url(#bowGrad)" />
+        <path d="M5,-10 C25,-20 35,8 5,0" fill={C.goldLight} opacity="0.35" />
         {/* Center knot */}
-        <ellipse cx="60" cy="44" rx="12" ry="9" fill={GOLD_D} />
-        <ellipse cx="60" cy="43" rx="8" ry="6" fill={GOLD} />
-        <ellipse cx="58" cy="42" rx="4" ry="3" fill={GOLD_L} />
+        <ellipse cx="0" cy="2" rx="10" ry="7" fill={C.goldDark} />
+        <ellipse cx="0" cy="1" rx="7" ry="5" fill={C.gold} />
+        <ellipse cx="-1" cy="0" rx="3" ry="2.5" fill={C.goldLight} />
         {/* Tails */}
-        <path d="M56,52 C48,68 52,80 40,88" stroke={GOLD} strokeWidth="6" fill="none" strokeLinecap="round" />
-        <path d="M64,52 C72,68 68,80 80,88" stroke={GOLD_D} strokeWidth="5" fill="none" strokeLinecap="round" />
-        <path d="M56,52 C48,68 52,80 40,88" stroke={GOLD_L} strokeWidth="2" fill="none" strokeLinecap="round" />
+        <path d="M-5,9 C-18,28 -20,38 -35,48" stroke={C.gold} strokeWidth="5" fill="none" strokeLinecap="round" opacity="0.9" />
+        <path d="M5,9 C18,28 20,38 35,48" stroke={C.goldDark} strokeWidth="4.5" fill="none" strokeLinecap="round" opacity="0.85" />
+        <path d="M-5,9 C-18,28 -20,38 -35,48" stroke={C.goldLight} strokeWidth="1.5" fill="none" strokeLinecap="round" opacity="0.6" />
       </g>
-    </svg>
+    </g>
   )
 }
 
+/**
+ * Build an isometric gift box with separate animatable parts.
+ * Opening sequence: bow flies up → lid flies away → walls fall → content
+ */
 export function GiftBox({ emoji, message, from, photo, onComplete }: GiftBoxProps) {
   const [opened, setOpened] = useState(false)
   const [showContent, setShowContent] = useState(false)
-  const [bowGone, setBowGone] = useState(false)
 
   const handleOpen = useCallback(() => {
     setOpened(true)
-    setTimeout(() => setBowGone(true), 200)
-    setTimeout(() => setShowContent(true), 1050)
+    setTimeout(() => setShowContent(true), 1200)
   }, [])
 
   useEffect(() => {
@@ -105,57 +184,47 @@ export function GiftBox({ emoji, message, from, photo, onComplete }: GiftBoxProp
     return () => clearTimeout(timer)
   }, [showContent, onComplete])
 
-  const perspective = 900
-
-  function renderBoxFace(name: string, color: string, dims: [number, number, number, number, number, number], extra?: React.CSSProperties) {
-    const [tw, th, tx, ty, tz, rotY] = dims
-    return (
-      <BoxFace
-        key={name}
-        style={{
-          width: tw, height: th,
-          background: `linear-gradient(145deg, ${color}dd, ${color}88, ${color}bb)`,
-          transform: `translateX(${tx}px) translateY(${ty}px) translateZ(${tz}px) rotateY(${rotY}deg)`,
-          border: `1px solid ${color}44`,
-          boxShadow: "inset 0 0 30px rgba(0,0,0,0.15)",
-          ...extra,
-        }}
-      />
-    )
-  }
-
-  function ribbonOnFront(w: number, h: number) {
-    return <RibbonCross w={w} h={h} />
-  }
-
-  function ribbonOnTop(w: number, d: number) {
-    const vw = 12
-    const hh = 10
-    const cx = (w - vw) / 2
-    const cy = (d - hh) / 2
-    return (
-      <>
-        <div style={{ ...ribbonStyle, left: cx, width: vw, height: "100%", top: 0, opacity: 0.85 }} />
-        <div style={{ ...ribbonStyle, top: cy, height: hh, width: "100%", left: 0, opacity: 0.85 }} />
-      </>
-    )
-  }
-
-  function ribbonOnSide(d: number, h: number) {
-    const vw = 12
-    const hh = 10
-    const cx = (d - vw) / 2
-    const cy = (h - hh) / 2
-    return (
-      <>
-        <div style={{ ...ribbonStyle, left: cx, width: vw, height: "100%", top: 0, opacity: 0.7 }} />
-        <div style={{ ...ribbonStyle, top: cy, height: hh, width: "100%", left: 0, opacity: 0.7 }} />
-      </>
-    )
-  }
+  // Ribbon polygons
+  const frontVertRibbon = ribbonStrip(fCxT, fCyT, fCx, fCy, RB_W)
+  const frontHorizRibbon = ribbonStrip(blx, (bly + blyT) / 2, bfx, (bfy + bfyT) / 2, 12)
+  const topStrip1 = ribbonStrip(tFrontCx, tFrontCy, tBackCx, tBackCy, RB_W)
+  const topStrip2 = ribbonStrip(tLeftCx, tLeftCy, tRightCx, tRightCy, 12)
+  const rightVertRibbon = ribbonStrip(rCxT, rCyT, rCx, rCy, RB_W)
+  const rightHorizRibbon = ribbonStrip(bfx, (bfy + bfyT) / 2, brx, (bry + bryT) / 2, 12)
 
   return (
     <div className="relative flex items-center justify-center w-full min-h-[60vh] overflow-hidden">
+      {/* SVG definitions */}
+      <svg className="absolute w-0 h-0">
+        <defs>
+          <filter id="shadowBlur"><feGaussianBlur stdDeviation="4" /></filter>
+          <linearGradient id="boxFrontGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={C.boxTop} />
+            <stop offset="100%" stopColor={C.boxFrontDark} />
+          </linearGradient>
+          <linearGradient id="boxRightGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={C.boxFront} />
+            <stop offset="100%" stopColor={C.boxRightDark} />
+          </linearGradient>
+          <linearGradient id="boxTopGrad" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stopColor={C.boxTopLight} />
+            <stop offset="100%" stopColor={C.boxTop} />
+          </linearGradient>
+          <linearGradient id="lidFrontGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={C.lidTop} />
+            <stop offset="100%" stopColor={C.lidFront} />
+          </linearGradient>
+          <linearGradient id="lidRightGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={C.lidFront} />
+            <stop offset="100%" stopColor={C.lidRight} />
+          </linearGradient>
+          <linearGradient id="lidTopGrad" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stopColor="#3268a0" />
+            <stop offset="100%" stopColor={C.lidTop} />
+          </linearGradient>
+        </defs>
+      </svg>
+
       <AnimatePresence>
         {!opened && (
           <motion.button
@@ -169,91 +238,71 @@ export function GiftBox({ emoji, message, from, photo, onComplete }: GiftBoxProp
             onClick={handleOpen}
             className="relative cursor-pointer select-none outline-none"
             aria-label="Open gift"
-            style={{ perspective }}
           >
             <motion.div
-              animate={{ y: [0, -6, 0] }}
+              animate={{ y: [0, -5, 0] }}
               transition={{ repeat: Infinity, duration: 2.5, ease: "easeInOut" }}
-              style={{ transformStyle: "preserve-3d", transform: `rotateX(-18deg) rotateY(-25deg)`, width: W + 20, height: H + D / 2 + 30 }}
             >
-              {/* Shadow */}
-              <div style={{
-                position: "absolute", bottom: -20, left: -10, width: W + 30, height: 20,
-                background: "radial-gradient(ellipse, rgba(0,0,0,0.3), transparent)",
-                transform: "rotateX(90deg) translateZ(-10px)",
-              }} />
+              <svg width="340" height="300" viewBox="0 0 340 300">
+                {/* Shadow */}
+                <BoxShadow />
 
-              {/* Box base — front */}
-              {renderBoxFace("front", RED.front, [W, H, -W / 2, -H / 2, D / 2, 0], { zIndex: 4 })}
-              {/* back */}
-              {renderBoxFace("back", RED.back, [W, H, -W / 2, -H / 2, -D / 2, 180], { zIndex: 1 })}
-              {/* left */}
-              {renderBoxFace("left", RED.left, [D, H, -W / 2 - D / 2, -H / 2, 0, -90], { zIndex: 2 })}
-              {/* right */}
-              {renderBoxFace("right", RED.right, [D, H, W / 2, -H / 2, 0, 90], { zIndex: 3 })}
-              {/* bottom */}
-              {renderBoxFace("bottom", RED.bottom, [W, D, -W / 2, H / 2, 0, -90], { transform: `translateX(${-W / 2}px) translateY(${H / 2}px) rotateX(90deg)`, zIndex: 0 })}
-              {/* top face (bottom of base box interior) */}
-              {renderBoxFace("top", RED.top, [W, D, -W / 2, -H / 2 - D / 2, 0, -90], { transform: `translateX(${-W / 2}px) translateY(${-H / 2}px) rotateX(-90deg)`, zIndex: 5 })}
+                {/* === BOX BASE === */}
+                {/* Front face */}
+                <polygon points={BOX_FRONT} fill="url(#boxFrontGrad)" stroke={C.boxFrontDark} strokeWidth="0.5" />
+                {/* Right face */}
+                <polygon points={BOX_RIGHT} fill="url(#boxRightGrad)" stroke={C.boxRightDark} strokeWidth="0.5" />
+                {/* Top face */}
+                <polygon points={BOX_TOP} fill="url(#boxTopGrad)" stroke={C.boxTop} strokeWidth="0.5" />
 
-              {/* Ribbons on base faces */}
-              <BoxFace style={{ width: W, height: H, transform: `translateX(${-W / 2}px) translateY(${-H / 2}px) translateZ(${D / 2 + 0.5}px)`, zIndex: 6 }}>
-                {ribbonOnFront(W, H)}
-              </BoxFace>
+                {/* Box Ribbon */}
+                <GoldRibbon points={frontVertRibbon} />
+                <GoldRibbon points={frontHorizRibbon} />
+                <GoldRibbon points={topStrip1} />
+                <GoldRibbon points={topStrip2} />
+                <GoldRibbon points={rightVertRibbon} />
+                <GoldRibbon points={rightHorizRibbon} />
 
-              {/* Lid group */}
-              <motion.div
-                style={{ transformStyle: "preserve-3d", transform: `translateY(${-L}px)`, zIndex: 7 }}
-              >
-                {/* lid front */}
-                {renderBoxFace("lidFront", LID.front, [LW, LH, -LW / 2, -LH / 2, LD / 2, 0], { zIndex: 4 })}
-                {/* lid back */}
-                {renderBoxFace("lidBack", LID.back, [LW, LH, -LW / 2, -LH / 2, -LD / 2, 180], { zIndex: 1 })}
-                {/* lid left */}
-                {renderBoxFace("lidLeft", LID.left, [LD, LH, -LW / 2 - LD / 2, -LH / 2, 0, -90], { zIndex: 2 })}
-                {/* lid right */}
-                {renderBoxFace("lidRight", LID.right, [LD, LH, LW / 2, -LH / 2, 0, 90], { zIndex: 3 })}
-                {/* lid top */}
-                {renderBoxFace("lidTop", LID.top, [LW, LD, -LW / 2, -LH / 2, 0, -90], {
-                  transform: `translateX(${-LW / 2}px) translateY(${-LH / 2}px) rotateX(-90deg)`,
-                  zIndex: 5,
-                })}
+                {/* Lid ribbon — front */}
+                <GoldRibbon points={ribbonStrip(
+                  (llxT + lfxT) / 2, (llyT + lfyT) / 2,
+                  (llx + lfx) / 2, (lly + lfy) / 2, RB_W
+                )} />
+                {/* Lid ribbon — top strip 1 */}
+                <GoldRibbon points={ribbonStrip(
+                  (lfxT + llxT) / 2, (lfyT + llyT) / 2,
+                  (lrxT + lbxT) / 2, (lryT + lbyT) / 2, RB_W
+                )} />
+                {/* Lid ribbon — top strip 2 */}
+                <GoldRibbon points={ribbonStrip(
+                  (llxT + lbxT) / 2, (llyT + lbyT) / 2,
+                  (lfxT + lrxT) / 2, (lfyT + lryT) / 2, 12
+                )} />
+                {/* Lid ribbon — right */}
+                <GoldRibbon points={ribbonStrip(
+                  (lfxT + lrxT) / 2, (lfyT + lryT) / 2,
+                  (lfx + lrx) / 2, (lfy + lry) / 2, RB_W
+                )} />
 
-                {/* Ribbon on lid front */}
-                <BoxFace style={{ width: LW, height: LH, transform: `translateX(${-LW / 2}px) translateY(${-LH / 2}px) translateZ(${LD / 2 + 0.5}px)`, zIndex: 6 }}>
-                  {ribbonOnFront(LW, LH)}
-                </BoxFace>
+                {/* === LID === */}
+                {/* Lid front face */}
+                <polygon points={LID_FRONT} fill="url(#lidFrontGrad)" stroke={C.lidFront} strokeWidth="0.5" />
+                {/* Lid right face */}
+                <polygon points={LID_RIGHT} fill="url(#lidRightGrad)" stroke={C.lidRight} strokeWidth="0.5" />
+                {/* Lid top face */}
+                <polygon points={LID_TOP} fill="url(#lidTopGrad)" stroke={C.lidTop} strokeWidth="0.5" />
 
-                {/* Ribbon on lid top */}
-                <BoxFace style={{ width: LW, height: LD, transform: `translateX(${-LW / 2}px) translateY(${-LH / 2}px) rotateX(-90deg) translateZ(${-LD / 2 + 0.5}px)`, zIndex: 6 }}>
-                  {ribbonOnTop(LW, LD)}
-                </BoxFace>
-
-                {/* Ribbon on lid left */}
-                <BoxFace style={{ width: LD, height: LH, transform: `translateX(${-LW / 2 - LD / 2}px) translateY(${-LH / 2}px) rotateY(-90deg) translateZ(${0.5}px)`, zIndex: 6 }}>
-                  {ribbonOnSide(LD, LH)}
-                </BoxFace>
-
-                {/* Bow on top */}
-                <div
-                  style={{
-                    position: "absolute",
-                    left: "50%", top: "50%",
-                    transform: `translateX(-50%) translateY(${-LH / 2 - 35}px) translateZ(${-LD / 2}px)`,
-                    zIndex: 10,
-                  }}
-                >
-                  <BowSVG size={90} />
-                </div>
-              </motion.div>
+                {/* Bow */}
+                <BowSVG />
+              </svg>
             </motion.div>
 
-            <p className="text-center text-sm text-white/70 mt-6 font-medium">Tap to open!</p>
+            <p className="text-center text-sm text-white/70 mt-2 font-medium">Tap to open!</p>
           </motion.button>
         )}
       </AnimatePresence>
 
-      {/* Opening animation */}
+      {/* === OPENING ANIMATION === */}
       <AnimatePresence>
         {opened && !showContent && (
           <motion.div
@@ -262,108 +311,74 @@ export function GiftBox({ emoji, message, from, photo, onComplete }: GiftBoxProp
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="absolute inset-0 flex items-center justify-center"
-            style={{ perspective }}
           >
             {/* Bow flying up */}
-            {!bowGone && (
-              <motion.div
-                key="bow-fly"
-                initial={{ y: 0, opacity: 1 }}
-                animate={{ y: -300, opacity: 0, scale: 0.5 }}
-                transition={{ duration: 0.5, ease: "easeOut" }}
-                className="absolute"
-                style={{ zIndex: 20 }}
-              >
-                <BowSVG size={90} />
-              </motion.div>
-            )}
-
-            {/* Lid flying off */}
             <motion.div
-              initial={{ y: 0, opacity: 1, rotateX: 0, rotateY: 0 }}
-              animate={{
-                y: -260, x: 140, opacity: 0,
-                rotateX: 40, rotateY: 50,
-              }}
-              transition={{ duration: 0.7, ease: "easeOut", delay: 0.2 }}
+              key="bow-fly"
+              initial={{ y: 0, opacity: 1, scale: 1 }}
+              animate={{ y: -250, opacity: 0, scale: 0.3 }}
+              transition={{ duration: 0.5, ease: "easeOut" }}
               className="absolute"
-              style={{ transformStyle: "preserve-3d", zIndex: 15 }}
+              style={{ zIndex: 20 }}
             >
-              <div style={{ transformStyle: "preserve-3d", transform: "rotateX(-18deg) rotateY(-25deg)", width: LW + 10, height: LH + 10 }}>
-                {/* Simplified lid visual for the flying piece */}
-                <div style={{
-                  width: LW, height: LH,
-                  background: `linear-gradient(145deg, ${LID.front}dd, ${LID.front}88)`,
-                  borderRadius: 4,
-                  border: `1px solid ${LID.front}44`,
-                  boxShadow: "0 10px 30px rgba(0,0,0,0.3)",
-                  transform: `translateZ(${LD / 2}px)`,
-                  position: "absolute",
-                }} />
-                <div style={{
-                  width: LW, height: LD,
-                  background: `linear-gradient(145deg, ${LID.top}dd, ${LID.top}88)`,
-                  transform: `rotateX(-90deg) translateZ(${-LD / 2}px)`,
-                  position: "absolute",
-                }} />
-              </div>
+              <svg width="80" height="80" viewBox="0 0 120 108">
+                <BowSVG />
+              </svg>
             </motion.div>
 
-            {/* Base walls falling outward */}
-            {/* Front wall */}  
+            {/* Lid flying up-right */}
             <motion.div
-              initial={{ y: 0, x: 0, opacity: 1, rotateX: 0 }}
-              animate={{ y: 180, z: -100, opacity: 0, rotateX: 30 }}
-              transition={{ duration: 0.5, ease: "easeOut", delay: 0.6 }}
+              key="lid-fly"
+              initial={{ y: 0, x: 0, opacity: 1, rotate: 0 }}
+              animate={{ y: -180, x: 100, opacity: 0, rotate: 25 }}
+              transition={{ duration: 0.6, ease: "easeOut", delay: 0.25 }}
               className="absolute"
+              style={{ zIndex: 15 }}
             >
-              <div style={{
-                width: W, height: H,
-                background: `linear-gradient(145deg, ${RED.front}dd, ${RED.front}88)`,
-                borderRadius: 4, border: `1px solid ${RED.front}44`,
-              }} />
+              <svg width="200" height="160" viewBox="0 0 340 280">
+                <polygon points={LID_TOP} fill={C.lidTop} opacity="0.9" />
+                <polygon points={LID_FRONT} fill={C.lidFront} opacity="0.8" />
+                <polygon points={LID_RIGHT} fill={C.lidRight} opacity="0.7" />
+              </svg>
             </motion.div>
 
-            {/* Back wall */}
+            {/* Front face falling left-down */}
             <motion.div
-              initial={{ y: 0, x: 0, opacity: 1 }}
-              animate={{ y: -140, opacity: 0, rotateX: -20 }}
+              key="wall-front"
+              initial={{ y: 0, x: 0, opacity: 1, rotate: 0 }}
+              animate={{ x: -120, y: 80, opacity: 0, rotate: -15 }}
               transition={{ duration: 0.5, ease: "easeOut", delay: 0.65 }}
               className="absolute"
             >
-              <div style={{
-                width: W, height: H,
-                background: `linear-gradient(145deg, ${RED.back}dd, ${RED.back}88)`,
-                borderRadius: 4, border: `1px solid ${RED.back}44`,
-              }} />
+              <svg width="120" height="170" viewBox="0 0 120 170">
+                <polygon points={`0,0 103.9,0 103.9,100 0,100`} fill={C.boxFront} opacity="0.7" />
+              </svg>
             </motion.div>
 
-            {/* Left wall */}
+            {/* Right face falling right-down */}
             <motion.div
-              initial={{ y: 0, x: 0, opacity: 1 }}
-              animate={{ x: -200, y: 60, opacity: 0, rotateY: -30 }}
+              key="wall-right"
+              initial={{ y: 0, x: 0, opacity: 1, rotate: 0 }}
+              animate={{ x: 120, y: 80, opacity: 0, rotate: 15 }}
               transition={{ duration: 0.5, ease: "easeOut", delay: 0.7 }}
               className="absolute"
             >
-              <div style={{
-                width: D, height: H,
-                background: `linear-gradient(145deg, ${RED.left}dd, ${RED.left}88)`,
-                borderRadius: 4, border: `1px solid ${RED.left}44`,
-              }} />
+              <svg width="170" height="170" viewBox="0 0 170 170">
+                <polygon points={`0,0 103.9,0 103.9,100 0,100`} fill={C.boxRight} opacity="0.7" />
+              </svg>
             </motion.div>
 
-            {/* Right wall */}
+            {/* Top face (base box) falling down */}
             <motion.div
-              initial={{ y: 0, x: 0, opacity: 1 }}
-              animate={{ x: 200, y: 60, opacity: 0, rotateY: 30 }}
-              transition={{ duration: 0.5, ease: "easeOut", delay: 0.75 }}
+              key="wall-top"
+              initial={{ y: 0, opacity: 1 }}
+              animate={{ y: 100, opacity: 0, scale: 0.6 }}
+              transition={{ duration: 0.4, ease: "easeOut", delay: 0.75 }}
               className="absolute"
             >
-              <div style={{
-                width: D, height: H,
-                background: `linear-gradient(145deg, ${RED.right}dd, ${RED.right}88)`,
-                borderRadius: 4, border: `1px solid ${RED.right}44`,
-              }} />
+              <svg width="220" height="130" viewBox="0 0 220 130">
+                <polygon points={`0,60 103.9,0 0,-60 -103.9,0`} fill={C.boxTop} opacity="0.7" />
+              </svg>
             </motion.div>
           </motion.div>
         )}
@@ -394,11 +409,7 @@ export function GiftBox({ emoji, message, from, photo, onComplete }: GiftBoxProp
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.15 }}
               >
-                <img
-                  src={photo}
-                  alt=""
-                  className="w-20 h-20 rounded-2xl object-cover mx-auto border-2 border-white/40 shadow-lg"
-                />
+                <img src={photo} alt="" className="w-20 h-20 rounded-2xl object-cover mx-auto border-2 border-white/40 shadow-lg" />
               </motion.div>
             )}
 
@@ -415,7 +426,7 @@ export function GiftBox({ emoji, message, from, photo, onComplete }: GiftBoxProp
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 0.4 }}
-              className="text-pink-200 font-semibold text-lg"
+              className="text-blue-200 font-semibold text-lg"
             >
               &mdash; {from} &mdash;
             </motion.p>
