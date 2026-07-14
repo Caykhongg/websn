@@ -76,15 +76,16 @@ app.post("/api/wishes", upload.single("photo"), (req, res) => {
     if (!from?.trim() || !message?.trim()) {
       return res.status(400).json({ error: "Name and message required" })
     }
-    const id = randomUUID().slice(0, 12)
-    const photoPath = req.file ? `/uploads/${req.file.filename}` : null
-    const stmt = db.prepare(
-      `INSERT INTO wishes (id, from_name, message, emoji, effects, presentation_type, balloon_color, photo_path, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
-    )
-    stmt.run(id, from.trim(), message.trim(), emoji || "🎂",
-      JSON.stringify(effects || []), presentationType || "gift",
-      balloonColor || null, photoPath, Date.now())
+      const id = randomUUID().slice(0, 12)
+      const photoPath = req.file ? `/uploads/${req.file.filename}` : null
+      const effectsStr = typeof effects === "string" ? effects : JSON.stringify(effects || [])
+      const stmt = db.prepare(
+        `INSERT INTO wishes (id, from_name, message, emoji, effects, presentation_type, balloon_color, photo_path, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      )
+      stmt.run(id, from.trim(), message.trim(), emoji || "🎂",
+        effectsStr, presentationType || "gift",
+        balloonColor || null, photoPath, Date.now())
 
     res.json({
       id,
@@ -126,10 +127,10 @@ app.get("/api/wishes/:id", (req, res) => {
 })
 
 // Serve SPA for all routes
-app.get("*", (req, res) => {
+app.use((req, res) => {
   const dist = join(__dirname, "..", "dist")
-  const path = req.url === "/" ? "/index.html" : req.url
-  const filePath = join(dist, path)
+  const p = req.url === "/" ? "/index.html" : req.url
+  const filePath = join(dist, p)
   if (existsSync(filePath)) return serveStatic(filePath, res)
   serveStatic(join(dist, "index.html"), res)
 })
