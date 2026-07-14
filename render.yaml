@@ -3,4 +3,4 @@ services:
     name: birthday-wish
     env: node
     buildCommand: npm install && npm run build
-    startCommand: npm start
+    startCommand: cd backend && node server.js

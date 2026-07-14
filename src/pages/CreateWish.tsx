@@ -6,6 +6,7 @@ import { PhotoUpload } from "../components/PhotoUpload"
 import { QRCodeModal } from "../components/QRCodeModal"
 import { WishHistory } from "../components/WishHistory"
 import { GooeyBackground } from "../components/ui/gooey-background"
+import { createWish } from "../lib/api"
 import { saveWish, generateId } from "../lib/store"
 import { encodeToBase64 } from "../lib/encoding"
 import type { WishFormData, EffectType, PresentationType } from "../lib/types"
@@ -76,7 +77,7 @@ export function CreateWish() {
     return Object.keys(errs).length === 0
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!validate()) return
     setSubmitting(true)
@@ -94,26 +95,34 @@ export function CreateWish() {
       createdAt: Date.now(),
     }
 
-    const saved = saveWish(wish)
-    if (!saved) {
-      alert("Failed to save wish. Storage may be full.")
-      setSubmitting(false)
-      return
-    }
+    // Try server first
+    const serverWish = await createWish({
+      from: wish.from,
+      message: wish.message,
+      emoji: wish.emoji,
+      effects: wish.effects,
+      presentationType: wish.presentationType,
+      balloonColor: wish.balloonColor,
+      photo: wish.photo,
+    })
+    const finalId = serverWish?.id || id
 
-    setWishId(id)
+    saveWish({ ...wish, id: finalId })
+
+    setWishId(finalId)
     const payload: Record<string, unknown> = {
       from: wish.from,
       message: wish.message,
-      photo: wish.photo,
       emoji: wish.emoji,
       effects: wish.effects,
       presentationType: wish.presentationType,
       createdAt: wish.createdAt,
     }
     if (wish.balloonColor) payload.balloonColor = wish.balloonColor
+    if (serverWish?.photo) payload.photo = serverWish.photo
+    else if (wish.photo) payload.photo = wish.photo
     const encoded = encodeToBase64(payload)
-    const url = `${window.location.origin}/wish/${id}#${encoded}`
+    const url = `${window.location.origin}/wish/${finalId}#${encoded}`
     setWishUrl(url)
     setShowQR(true)
     setSubmitting(false)

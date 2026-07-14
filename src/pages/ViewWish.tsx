@@ -1,7 +1,8 @@
 import { useEffect, useState, useCallback } from "react"
 import { useParams, Link } from "react-router-dom"
 import { motion } from "motion/react"
-import { getWish } from "../lib/store"
+import { getWish as getLocalWish } from "../lib/store"
+import { getWish as getApiWish } from "../lib/api"
 import { decodeFromBase64 } from "../lib/encoding"
 import { EffectRenderer } from "../components/Balloon"
 import { GiftBox } from "../components/GiftBox"
@@ -34,18 +35,26 @@ export default function ViewWish() {
     if (hash) {
       const data = decodeFromBase64<HashPayload>(hash)
       if (data) {
-        const stored = id ? getWish(id) : null
-        setWish({
-          id: id ?? "shared",
-          from: data.from,
-          message: data.message,
-          photo: data.photo || stored?.photo,
-          emoji: data.emoji,
-          effects: data.effects as WishData["effects"],
-          presentationType: data.presentationType as PresentationType,
-          balloonColor: data.balloonColor,
-          createdAt: data.createdAt,
-        })
+        // Try API first for full data (including photo), fall back to hash
+        const load = async () => {
+          let photo = data.photo
+          if (id) {
+            const server = await getApiWish(id)
+            if (server?.photo) photo = server.photo
+          }
+          setWish({
+            id: id ?? "shared",
+            from: data.from,
+            message: data.message,
+            photo: photo || (id ? getLocalWish(id)?.photo : undefined),
+            emoji: data.emoji,
+            effects: data.effects as WishData["effects"],
+            presentationType: data.presentationType as PresentationType,
+            balloonColor: data.balloonColor,
+            createdAt: data.createdAt,
+          })
+        }
+        load()
         return
       }
     }
@@ -55,12 +64,31 @@ export default function ViewWish() {
       return
     }
 
-    const data = getWish(id)
-    if (!data) {
+    // Try API first, then localStorage
+    const load = async () => {
+      const server = await getApiWish(id)
+      if (server) {
+        setWish({
+          id: server.id,
+          from: server.from,
+          message: server.message,
+          photo: server.photo,
+          emoji: server.emoji,
+          effects: server.effects as WishData["effects"],
+          presentationType: server.presentationType as PresentationType,
+          balloonColor: server.balloonColor,
+          createdAt: server.createdAt,
+        })
+        return
+      }
+      const local = getLocalWish(id)
+      if (local) {
+        setWish(local)
+        return
+      }
       setNotFound(true)
-      return
     }
-    setWish(data)
+    load()
   }, [id])
 
   const handlePresentationDone = useCallback(() => {
