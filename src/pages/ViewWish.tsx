@@ -14,6 +14,7 @@ import type { WishData, PresentationType } from "../lib/types"
 interface HashPayload {
   from: string
   message: string
+  photo?: string
   emoji: string
   effects: string[]
   presentationType: string
@@ -38,7 +39,7 @@ export default function ViewWish() {
           id: id ?? "shared",
           from: data.from,
           message: data.message,
-          photo: stored?.photo,
+          photo: data.photo || stored?.photo,
           emoji: data.emoji,
           effects: data.effects as WishData["effects"],
           presentationType: data.presentationType as PresentationType,

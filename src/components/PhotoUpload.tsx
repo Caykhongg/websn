@@ -5,6 +5,31 @@ interface PhotoUploadProps {
   onChange: (dataUrl: string | undefined) => void
 }
 
+function compressImage(file: File, maxSize: number): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new Image()
+    const url = URL.createObjectURL(file)
+    img.src = url
+    img.onload = () => {
+      URL.revokeObjectURL(url)
+      let w = img.width, h = img.height
+      if (w > maxSize || h > maxSize) {
+        const ratio = Math.min(maxSize / w, maxSize / h)
+        w = Math.round(w * ratio)
+        h = Math.round(h * ratio)
+      }
+      const canvas = document.createElement("canvas")
+      canvas.width = w
+      canvas.height = h
+      const ctx = canvas.getContext("2d")
+      if (!ctx) { reject(new Error("Canvas context unavailable")); return }
+      ctx.drawImage(img, 0, 0, w, h)
+      resolve(canvas.toDataURL("image/jpeg", 0.6))
+    }
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("Failed to load image")) }
+  })
+}
+
 export function PhotoUpload({ photo, onChange }: PhotoUploadProps) {
   const inputRef = useRef<HTMLInputElement>(null)
   const mountedRef = useRef(true)
@@ -25,7 +50,7 @@ export function PhotoUpload({ photo, onChange }: PhotoUploadProps) {
     }
   }
 
-  const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
 
@@ -39,14 +64,12 @@ export function PhotoUpload({ photo, onChange }: PhotoUploadProps) {
       return
     }
 
-    const reader = new FileReader()
-    reader.onload = () => {
-      if (mountedRef.current) onChange(reader.result as string)
+    try {
+      const compressed = await compressImage(file, 300)
+      if (mountedRef.current) onChange(compressed)
+    } catch {
+      if (mountedRef.current) alert("Failed to process image")
     }
-    reader.onerror = () => {
-      if (mountedRef.current) alert("Failed to read image file")
-    }
-    reader.readAsDataURL(file)
   }
 
   const handleRemove = () => {

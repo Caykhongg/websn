@@ -105,6 +105,7 @@ export function CreateWish() {
     const payload: Record<string, unknown> = {
       from: wish.from,
       message: wish.message,
+      photo: wish.photo,
       emoji: wish.emoji,
       effects: wish.effects,
       presentationType: wish.presentationType,
