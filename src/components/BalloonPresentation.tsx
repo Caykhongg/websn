@@ -6,66 +6,54 @@ interface BalloonPresentationProps {
   onComplete?: () => void
 }
 
-interface Balloon {
-  id: number
-  x: number
-  y: number
-  size: number
-  delay: number
-  popped: boolean
-}
-
 export function BalloonPresentation({ color, onComplete }: BalloonPresentationProps) {
-  const [balloons, setBalloons] = useState<Balloon[]>([])
-  const [allPopped, setAllPopped] = useState(false)
+  const [mode, setMode] = useState<"idle" | "flying" | "popped" | "done">("idle")
+  const [pullDir, setPullDir] = useState<"up" | "down" | null>(null)
+  const [pullAmount, setPullAmount] = useState(0)
+  const [showHint, setShowHint] = useState(true)
   const canvasRef = useRef<HTMLCanvasElement>(null)
-  const popParticles = useRef<{ x: number; y: number; vx: number; vy: number; life: number; maxLife: number; size: number }[]>([])
-  const animFrame = useRef<number>(0)
+  const balloonRef = useRef<HTMLDivElement>(null)
+  const dragStartY = useRef(0)
+  const pullStartY = useRef(0)
   const doneRef = useRef(false)
 
-  useEffect(() => {
-    const b: Balloon[] = []
-    for (let i = 0; i < 12; i++) {
-      b.push({
-        id: i,
-        x: 10 + Math.random() * 80,
-        y: 10 + Math.random() * 70,
-        size: 40 + Math.random() * 30,
-        delay: Math.random() * 2,
-        popped: false,
-      })
-    }
-    setBalloons(b)
-  }, [])
+  // Pull string logic
+  const handleStringPointerDown = useCallback((e: React.PointerEvent) => {
+    e.preventDefault()
+    dragStartY.current = e.clientY
+    pullStartY.current = 0
 
-  const popBalloon = useCallback((id: number, cx: number, cy: number) => {
-    // Add pop particles
-    for (let i = 0; i < 30; i++) {
-      const angle = Math.random() * Math.PI * 2
-      const speed = 2 + Math.random() * 5
-      popParticles.current.push({
-        x: cx,
-        y: cy,
-        vx: Math.cos(angle) * speed,
-        vy: Math.sin(angle) * speed - 2,
-        life: 0,
-        maxLife: 20 + Math.random() * 20,
-        size: 2 + Math.random() * 4,
-      })
-    }
+    const onMove = (ev: globalThis.PointerEvent) => {
+      const delta = dragStartY.current - ev.clientY
+      pullStartY.current = delta
+      const amount = Math.min(Math.abs(delta) / 200, 1)
+      setPullAmount(amount)
+      setPullDir(delta > 0 ? "up" : "down")
+      setShowHint(false)
 
-    setBalloons((prev) => {
-      const next = prev.map((b) => (b.id === id ? { ...b, popped: true } : b))
-      if (next.every((b) => b.popped) && !doneRef.current) {
-        doneRef.current = true
-        setTimeout(() => setAllPopped(true), 500)
+      if (amount >= 0.8) {
+        setMode("flying")
+        window.removeEventListener("pointermove", onMove)
+        window.removeEventListener("pointerup", onUp)
       }
-      return next
-    })
+    }
+
+    const onUp = () => {
+      window.removeEventListener("pointermove", onMove)
+      window.removeEventListener("pointerup", onUp)
+      if (pullStartY.current < 50) {
+        setPullAmount(0)
+        setPullDir(null)
+      }
+    }
+
+    window.addEventListener("pointermove", onMove)
+    window.addEventListener("pointerup", onUp)
   }, [])
 
-  // Animate pop particles
+  // Pop animation on canvas
   useEffect(() => {
+    if (mode !== "popped") return
     const canvas = canvasRef.current
     if (!canvas) return
     const ctx = canvas.getContext("2d")
@@ -73,81 +61,235 @@ export function BalloonPresentation({ color, onComplete }: BalloonPresentationPr
 
     canvas.width = window.innerWidth
     canvas.height = window.innerHeight
+    const W = canvas.width
+    const H = canvas.height
+    const cx = W / 2
+    const cy = H / 2
 
+    // Shards flying upward
+    const shards: { x: number; y: number; vx: number; vy: number; size: number; rot: number; rotV: number; life: number; maxLife: number }[] = []
+    for (let i = 0; i < 60; i++) {
+      const angle = -Math.PI / 2 + (Math.random() - 0.5) * Math.PI * 1.2
+      const speed = 2 + Math.random() * 6
+      shards.push({
+        x: cx + (Math.random() - 0.5) * 40,
+        y: cy + (Math.random() - 0.5) * 40,
+        vx: Math.cos(angle) * speed + (Math.random() - 0.5) * 2,
+        vy: Math.sin(angle) * speed - 2 - Math.random() * 3,
+        size: 3 + Math.random() * 6,
+        rot: Math.random() * Math.PI * 2,
+        rotV: (Math.random() - 0.5) * 0.2,
+        life: 0,
+        maxLife: 30 + Math.random() * 30,
+      })
+    }
+
+    // Jagged edge particles (surrounding the burst area)
+    const edges: { x: number; y: number; angle: number; len: number; life: number; maxLife: number }[] = []
+    for (let i = 0; i < 36; i++) {
+      const angle = (Math.PI * 2 * i) / 36
+      const len = 20 + Math.random() * 50
+      edges.push({
+        x: cx + Math.cos(angle) * 30,
+        y: cy + Math.sin(angle) * 30,
+        angle,
+        len: len + (Math.random() - 0.5) * 20,
+        life: 0,
+        maxLife: 25 + Math.random() * 20,
+      })
+    }
+
+    let frame: number
     const animate = () => {
-      ctx.clearRect(0, 0, canvas.width, canvas.height)
-      for (let i = popParticles.current.length - 1; i >= 0; i--) {
-        const p = popParticles.current[i]
-        if (p.life >= p.maxLife) {
-          popParticles.current.splice(i, 1)
-          continue
-        }
-        p.x += p.vx
-        p.y += p.vy
-        p.vy += 0.05
-        p.life++
-        const alpha = 1 - p.life / p.maxLife
+      ctx!.clearRect(0, 0, W, H)
+
+      // Draw jagged edge ring
+      let edgeAlive = false
+      ctx!.beginPath()
+      for (const e of edges) {
+        if (e.life >= e.maxLife) continue
+        edgeAlive = true
+        const alpha = 1 - e.life / e.maxLife
+        ctx!.globalAlpha = alpha * 0.7
+        const tipX = e.x + Math.cos(e.angle) * e.len
+        const tipY = e.y + Math.sin(e.angle) * e.len
+        ctx!.moveTo(e.x, e.y)
+        ctx!.lineTo(tipX, tipY)
+        e.life++
+        e.len *= 0.97
+      }
+      ctx!.strokeStyle = color
+      ctx!.lineWidth = 2
+      ctx!.stroke()
+      ctx!.globalAlpha = 1
+
+      // Draw shards
+      let shardAlive = false
+      for (const s of shards) {
+        if (s.life >= s.maxLife) continue
+        shardAlive = true
+        s.x += s.vx
+        s.y += s.vy
+        s.vy -= 0.02
+        s.vx *= 0.99
+        s.rot += s.rotV
+        s.life++
+        const alpha = 1 - s.life / s.maxLife
         ctx!.globalAlpha = alpha
+        ctx!.save()
+        ctx!.translate(s.x, s.y)
+        ctx!.rotate(s.rot)
         ctx!.fillStyle = color
+        // Draw irregular shard
         ctx!.beginPath()
-        ctx!.arc(p.x, p.y, p.size, 0, Math.PI * 2)
+        ctx!.moveTo(-s.size / 2, -s.size / 2)
+        ctx!.lineTo(s.size / 2, -s.size / 3)
+        ctx!.lineTo(s.size / 2, s.size / 2)
+        ctx!.lineTo(-s.size / 3, s.size / 3)
+        ctx!.closePath()
         ctx!.fill()
+        ctx!.restore()
       }
       ctx!.globalAlpha = 1
-      animFrame.current = requestAnimationFrame(animate)
-    }
-    animFrame.current = requestAnimationFrame(animate)
-    return () => {
-      if (animFrame.current) cancelAnimationFrame(animFrame.current)
-    }
-  }, [color])
 
+      if (shardAlive || edgeAlive) {
+        frame = requestAnimationFrame(animate)
+      } else if (!doneRef.current) {
+        doneRef.current = true
+        setTimeout(() => onComplete?.(), 500)
+      }
+    }
+
+    frame = requestAnimationFrame(animate)
+    return () => cancelAnimationFrame(frame)
+  }, [mode, color, onComplete])
+
+  // Auto-complete after flying
   useEffect(() => {
-    if (!allPopped) return
-    const timer = setTimeout(() => onComplete?.(), 1000)
+    if (mode !== "flying") return
+    const timer = setTimeout(() => onComplete?.(), 2000)
     return () => clearTimeout(timer)
-  }, [allPopped, onComplete])
+  }, [mode, onComplete])
+
+  // Hide hint after 3s
+  useEffect(() => {
+    if (!showHint) return
+    const timer = setTimeout(() => setShowHint(false), 3000)
+    return () => clearTimeout(timer)
+  }, [showHint])
 
   return (
-    <div className="relative w-full h-full min-h-[60vh] flex items-center justify-center">
-      <canvas ref={canvasRef} className="fixed inset-0 pointer-events-none z-30" />
+    <div className="relative flex items-center justify-center w-full min-h-[60vh]">
+      <canvas ref={canvasRef} className="fixed inset-0 pointer-events-none z-30" style={{ display: mode === "popped" ? "block" : "none" }} />
 
+      {/* Floating balloon */}
       <AnimatePresence>
-        {balloons.map((b) =>
-          !b.popped ? (
+        {mode === "idle" && (
+          <motion.div
+            ref={balloonRef}
+            key="balloon"
+            initial={{ scale: 0 }}
+            animate={{ scale: 1, y: [0, -12, 0] }}
+            transition={{ scale: { type: "spring", damping: 12 }, y: { repeat: Infinity, duration: 3, ease: "easeInOut" } }}
+            className="relative flex flex-col items-center z-20"
+          >
+            {/* Balloon body - tap to pop */}
             <motion.button
-              key={b.id}
-              initial={{ opacity: 0, scale: 0 }}
-              animate={{
-                opacity: 1,
-                scale: 1,
-                y: [0, -20, 0],
-              }}
-              transition={{
-                opacity: { delay: b.delay },
-                scale: { delay: b.delay },
-                y: { repeat: Infinity, duration: 3 + Math.random(), delay: b.delay, ease: "easeInOut" },
-              }}
-              exit={{ scale: 0, opacity: 0 }}
-              onClick={(e) => {
-                const rect = e.currentTarget.getBoundingClientRect()
-                popBalloon(b.id, rect.left + rect.width / 2, rect.top + rect.height / 2)
-              }}
-              className="absolute cursor-pointer select-none"
-              style={{
-                left: `${b.x}%`,
-                top: `${b.y}%`,
-              }}
+              onClick={() => setMode("popped")}
+              whileHover={{ scale: 1.08 }}
+              whileTap={{ scale: 0.9 }}
+              className="relative cursor-pointer select-none outline-none"
               aria-label="Pop balloon"
             >
-              <svg width={b.size} height={b.size * 1.2} viewBox="0 0 40 48" fill="none">
-                <ellipse cx="20" cy="22" rx="18" ry="22" fill={color} />
-                <polygon points="20,42 16,48 24,48" fill={color} />
-                <line x1="20" y1="48" x2="20" y2="52" stroke="#999" strokeWidth="1" />
-                <ellipse cx="14" cy="18" rx="2" ry="3" fill="rgba(255,255,255,0.3)" />
+              <svg width="140" height="170" viewBox="0 0 140 170">
+                <defs>
+                  <radialGradient id="balloonGrad" cx="40%" cy="30%">
+                    <stop offset="0%" stopColor="#fff" stopOpacity="0.4" />
+                    <stop offset="100%" stopColor={color} stopOpacity="1" />
+                  </radialGradient>
+                </defs>
+                <ellipse cx="70" cy="85" rx="60" ry="80" fill="url(#balloonGrad)" />
+                <polygon points="70,160 60,170 80,170" fill={color} />
+                {/* Highlight */}
+                <ellipse cx="48" cy="65" rx="12" ry="16" fill="rgba(255,255,255,0.25)" transform="rotate(-15 48 65)" />
               </svg>
             </motion.button>
-          ) : null
+
+            {/* String - pull to release */}
+            <div
+              className="relative cursor-grab active:cursor-grabbing touch-none select-none"
+              onPointerDown={handleStringPointerDown}
+              style={{ touchAction: "none" }}
+            >
+              <svg width="4" height="160" viewBox="0 0 4 160" className="overflow-visible">
+                <path
+                  d="M2,0 Q4,30 2,60 Q0,90 3,120 Q4,140 2,160"
+                  fill="none"
+                  stroke={pullDir === "down" ? "#999" : "#ccc"}
+                  strokeWidth="2"
+                  strokeDasharray={pullDir ? "4 2" : "none"}
+                />
+              </svg>
+              {/* Pull indicator */}
+              {pullAmount > 0 && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="absolute -left-6 top-1/2 -translate-y-1/2 text-xs text-white/50"
+                >
+                  {pullDir === "up" ? "↑" : "↓"}
+                </motion.div>
+              )}
+            </div>
+
+            {/* Pull progress bar */}
+            {pullAmount > 0.05 && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="absolute bottom-[-40px] w-20 h-1 bg-white/20 rounded-full overflow-hidden"
+              >
+                <div
+                  className="h-full bg-white/60 rounded-full transition-all duration-75"
+                  style={{ width: `${pullAmount * 100}%` }}
+                />
+              </motion.div>
+            )}
+
+            {/* Instruction hints */}
+            <AnimatePresence>
+              {showHint && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  className="absolute bottom-[-70px] text-center space-y-1"
+                >
+                  <p className="text-xs text-white/60">⬆ Pull string or tap balloon ⬇</p>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Balloon flying up */}
+      <AnimatePresence>
+        {mode === "flying" && (
+          <motion.div
+            key="balloon-fly"
+            initial={{ y: 0, opacity: 1 }}
+            animate={{ y: -window.innerHeight - 200, opacity: 0, scale: 0.5 }}
+            transition={{ duration: 1.5, ease: "easeIn" }}
+            onAnimationComplete={() => setMode("done")}
+            className="relative z-20"
+          >
+            <svg width="100" height="120" viewBox="0 0 140 170">
+              <ellipse cx="70" cy="85" rx="60" ry="80" fill={color} />
+              <polygon points="70,160 60,170 80,170" fill={color} />
+              <path d="M70,170 Q72,200 70,250" fill="none" stroke="#ccc" strokeWidth="2" />
+            </svg>
+          </motion.div>
         )}
       </AnimatePresence>
     </div>
