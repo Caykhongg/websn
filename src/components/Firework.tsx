@@ -29,117 +29,147 @@ export function Firework({ onShowInfo }: FireworkProps) {
     const cx = W / 2
     const cy = H / 2
 
-    const NUM = 25
-    const particles: { x: number; y: number; targetX: number; targetY: number; hue: number; speed: number; t: number; converged: boolean }[] = []
-
-    for (let i = 0; i < NUM; i++) {
-      particles.push({
-        x: Math.random() * W,
-        y: Math.random() * H,
-        targetX: Math.random() * W,
-        targetY: Math.random() * H,
-        hue: Math.random() * 360,
-        speed: 0.003 + Math.random() * 0.007,
-        t: Math.random() * 2,
-        converged: false,
-      })
+    const rocket = {
+      x: Math.random() * W,
+      y: Math.random() * H,
+      vx: (Math.random() - 0.5) * 6,
+      vy: (Math.random() - 0.5) * 6,
+      targetX: Math.random() * W,
+      targetY: Math.random() * H,
+      trail: [] as { x: number; y: number }[],
     }
 
-    const sparks: { x: number; y: number; vx: number; vy: number; hue: number; size: number; life: number; maxLife: number }[] = []
+    const sparks: { x: number; y: number; vx: number; vy: number; size: number; life: number; maxLife: number }[] = []
     let phase: "fly" | "converge" | "explode" = "fly"
-    const START_TIME = performance.now()
     const MIN_FLY_TIME = 4000
+    const START_TIME = performance.now()
     let frame: number
 
     const animate = (now: number) => {
       ctx!.clearRect(0, 0, W, H)
 
       if (phase === "fly") {
-        const elapsed = now - START_TIME
-        let allReady = true
+        // Random movement - steer toward target
+        const dx = rocket.targetX - rocket.x
+        const dy = rocket.targetY - rocket.y
+        const dist = Math.sqrt(dx * dx + dy * dy)
 
-        for (const p of particles) {
-          p.t += p.speed
-          const swayX = Math.sin(p.t * 30 + p.hue) * (100 + Math.sin(p.hue + p.t * 7) * 50)
-          const swayY = Math.cos(p.t * 25 + p.hue * 2) * (80 + Math.cos(p.hue + p.t * 5) * 40)
-          const drawX = p.targetX + swayX
-          const drawY = p.targetY + swayY
-
-          if (p.t > 3 + Math.random() * 2) {
-            p.targetX = Math.random() * W
-            p.targetY = Math.random() * H
-            p.t = 0
-          }
-
-          ctx!.fillStyle = `hsla(${p.hue + p.t * 60}, 95%, 65%, 0.85)`
-          ctx!.beginPath()
-          ctx!.arc(drawX, drawY, 5 + Math.sin(p.t * 10) * 2, 0, Math.PI * 2)
-          ctx!.fill()
-
-          ctx!.fillStyle = `hsla(${p.hue + p.t * 60}, 95%, 75%, 0.25)`
-          ctx!.beginPath()
-          ctx!.arc(drawX, drawY, 14, 0, Math.PI * 2)
-          ctx!.fill()
-
-          if (elapsed < MIN_FLY_TIME) allReady = false
+        if (dist < 30) {
+          rocket.targetX = Math.random() * W
+          rocket.targetY = Math.random() * H
         }
 
-        if (allReady && elapsed >= MIN_FLY_TIME) {
+        rocket.vx += (dx / (dist || 1)) * 0.05 + (Math.random() - 0.5) * 0.4
+        rocket.vy += (dy / (dist || 1)) * 0.05 + (Math.random() - 0.5) * 0.4
+        rocket.vx = Math.max(-5, Math.min(5, rocket.vx))
+        rocket.vy = Math.max(-5, Math.min(5, rocket.vy))
+        rocket.x += rocket.vx
+        rocket.y += rocket.vy
+
+        // Keep in bounds
+        if (rocket.x < 0 || rocket.x > W) { rocket.vx *= -0.5; rocket.targetX = Math.random() * W }
+        if (rocket.y < 0 || rocket.y > H) { rocket.vy *= -0.5; rocket.targetY = Math.random() * H }
+
+        // Trail
+        rocket.trail.push({ x: rocket.x, y: rocket.y })
+        if (rocket.trail.length > 40) rocket.trail.shift()
+
+        // Draw trail
+        for (let i = 0; i < rocket.trail.length; i++) {
+          const alpha = (i / rocket.trail.length) * 0.6
+          ctx!.globalAlpha = alpha
+          ctx!.fillStyle = "#fff"
+          ctx!.beginPath()
+          ctx!.arc(rocket.trail[i].x, rocket.trail[i].y, 2 + (i / rocket.trail.length) * 3, 0, Math.PI * 2)
+          ctx!.fill()
+        }
+        ctx!.globalAlpha = 1
+
+        // Draw rocket
+        ctx!.fillStyle = "#ffd700"
+        ctx!.beginPath()
+        ctx!.arc(rocket.x, rocket.y, 6, 0, Math.PI * 2)
+        ctx!.fill()
+        ctx!.fillStyle = "rgba(255,215,0,0.3)"
+        ctx!.beginPath()
+        ctx!.arc(rocket.x, rocket.y, 14, 0, Math.PI * 2)
+        ctx!.fill()
+
+        // Sparkle particles behind rocket
+        for (let i = 0; i < 3; i++) {
+          ctx!.fillStyle = `hsla(${30 + Math.random() * 30}, 100%, ${50 + Math.random() * 30}%, 0.5)`
+          ctx!.beginPath()
+          ctx!.arc(
+            rocket.x + (Math.random() - 0.5) * 10,
+            rocket.y + (Math.random() - 0.5) * 10,
+            1 + Math.random() * 2,
+            0, Math.PI * 2
+          )
+          ctx!.fill()
+        }
+
+        if (now - START_TIME >= MIN_FLY_TIME) {
           phase = "converge"
         }
 
         frame = requestAnimationFrame(animate)
       } else if (phase === "converge") {
-        let allAtCenter = true
+        const dx = cx - rocket.x
+        const dy = cy - rocket.y
+        const dist = Math.sqrt(dx * dx + dy * dy)
 
-        for (const p of particles) {
-          const dx = cx - p.targetX
-          const dy = cy - p.targetY
-          const dist = Math.sqrt(dx * dx + dy * dy)
-
-          if (dist > 3) {
-            allAtCenter = false
-            p.targetX += dx * 0.06
-            p.targetY += dy * 0.06
-          }
-
-          p.t += p.speed
-          const swayX = Math.sin(p.t * 30 + p.hue) * (dist * 0.3)
-          const swayY = Math.cos(p.t * 25 + p.hue * 2) * (dist * 0.3)
-          const drawX = p.targetX + swayX
-          const drawY = p.targetY + swayY
-
-          ctx!.fillStyle = `hsla(${p.hue + p.t * 60}, 95%, 65%, ${0.3 + 0.6 * (1 - dist / 300)})`
-          ctx!.beginPath()
-          ctx!.arc(drawX, drawY, 3 + (1 - dist / 300) * 4, 0, Math.PI * 2)
-          ctx!.fill()
+        if (dist > 3) {
+          rocket.vx += dx * 0.03
+          rocket.vy += dy * 0.03
+          rocket.vx *= 0.95
+          rocket.vy *= 0.95
+          rocket.x += rocket.vx
+          rocket.y += rocket.vy
         }
 
-        if (allAtCenter) {
+        // Draw converging rocket with trail
+        rocket.trail.push({ x: rocket.x, y: rocket.y })
+        if (rocket.trail.length > 60) rocket.trail.shift()
+
+        for (let i = 0; i < rocket.trail.length; i++) {
+          const alpha = (i / rocket.trail.length) * 0.8
+          ctx!.globalAlpha = alpha
+          ctx!.fillStyle = "#fff"
+          ctx!.beginPath()
+          ctx!.arc(rocket.trail[i].x, rocket.trail[i].y, 1 + (i / rocket.trail.length) * 2, 0, Math.PI * 2)
+          ctx!.fill()
+        }
+        ctx!.globalAlpha = 1
+
+        ctx!.fillStyle = "#ffd700"
+        ctx!.beginPath()
+        ctx!.arc(rocket.x, rocket.y, 5, 0, Math.PI * 2)
+        ctx!.fill()
+
+        // Explode when close enough
+        if (dist < 10) {
           phase = "explode"
-          // White flash
           ctx!.fillStyle = "#ffffff"
           ctx!.fillRect(0, 0, W, H)
 
-          for (let i = 0; i < 500; i++) {
+          for (let i = 0; i < 400; i++) {
             const angle = Math.random() * Math.PI * 2
-            const speed = 3 + Math.random() * 20
+            const speed = 4 + Math.random() * 18
             sparks.push({
               x: cx,
               y: cy,
               vx: Math.cos(angle) * speed,
-              vy: Math.sin(angle) * speed,
-              hue: Math.random() * 360,
-              size: 2 + Math.random() * 5,
+              vy: Math.sin(angle) * speed - 2,
+              size: 2 + Math.random() * 4,
               life: 0,
-              maxLife: 50 + Math.random() * 60,
+              maxLife: 50 + Math.random() * 50,
             })
           }
         }
 
         frame = requestAnimationFrame(animate)
       } else if (phase === "explode" && !doneRef.current) {
-        ctx!.fillStyle = "rgba(255,255,255,0.93)"
+        ctx!.fillStyle = "rgba(255,255,255,0.92)"
         ctx!.fillRect(0, 0, W, H)
 
         let alive = false
@@ -149,11 +179,10 @@ export function Firework({ onShowInfo }: FireworkProps) {
           s.x += s.vx
           s.y += s.vy
           s.vy += 0.04
-          s.vx *= 0.99
           s.life++
           const alpha = 1 - s.life / s.maxLife
           ctx!.globalAlpha = alpha
-          ctx!.fillStyle = `hsl(${s.hue}, 100%, ${50 + alpha * 30}%)`
+          ctx!.fillStyle = `hsl(${30 + Math.random() * 30}, 100%, ${50 + alpha * 40}%)`
           ctx!.beginPath()
           ctx!.arc(s.x, s.y, s.size, 0, Math.PI * 2)
           ctx!.fill()
